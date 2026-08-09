@@ -97,6 +97,32 @@ export default function AdminDashboard() {
   const [auctionDuration, setAuctionDuration] = useState('');
 
   // Validate session on mount
+  // Normalizers to convert user dashboard schema schemas to Admin dashboard schemas
+  const normalizeAdminTenders = (raw: any[]): Tender[] => {
+    return raw.map(item => ({
+      id: item.id,
+      title: item.title,
+      client: item.client || item.dept || '',
+      location: item.location || '',
+      value: item.value || '',
+      closingDate: item.closingDate || item.deadline || '',
+      matchType: item.matchType || item.match || 'High Match'
+    }));
+  };
+
+  const normalizeAdminAuctions = (raw: any[]): Auction[] => {
+    return raw.map(item => ({
+      id: item.id,
+      title: item.title,
+      client: item.client || '',
+      location: item.location || '',
+      startingValue: item.startingValue || `₹${(item.lowestBid || 12500).toLocaleString()}`,
+      duration: item.duration || item.timeLeft || '03:45 mins',
+      status: item.status === 'active' || item.status === 'placed' ? 'Live' : (item.status || 'Live')
+    }));
+  };
+
+  // Validate session & load listings on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('logged-in-admin');
@@ -105,6 +131,24 @@ export default function AdminDashboard() {
         router.push('/admin/login');
       } else {
         setAdmin(JSON.parse(stored));
+      }
+
+      // Load persistent listings
+      const savedTenders = localStorage.getItem('user-tenders');
+      if (savedTenders) {
+        try {
+          setTenders(normalizeAdminTenders(JSON.parse(savedTenders)));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      const savedAuctions = localStorage.getItem('user-auctions');
+      if (savedAuctions) {
+        try {
+          setAuctions(normalizeAdminAuctions(JSON.parse(savedAuctions)));
+        } catch (e) {
+          console.error(e);
+        }
       }
     }
   }, [router]);
@@ -134,8 +178,12 @@ export default function AdminDashboard() {
       matchType: tenderMatch
     };
 
-    setTenders([newTender, ...tenders]);
-    alert('Tender added successfully (UI Simulated)!');
+    const updated = [newTender, ...tenders];
+    setTenders(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('user-tenders', JSON.stringify(updated));
+    }
+    alert('Tender added successfully!');
     
     // Clear inputs
     setTenderId('');
@@ -165,8 +213,12 @@ export default function AdminDashboard() {
       status: 'Live'
     };
 
-    setAuctions([newAuction, ...auctions]);
-    alert('Auction added successfully (UI Simulated)!');
+    const updated = [newAuction, ...auctions];
+    setAuctions(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('user-auctions', JSON.stringify(updated));
+    }
+    alert('Auction added successfully!');
 
     // Clear inputs
     setAuctionId('');

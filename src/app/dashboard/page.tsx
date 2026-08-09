@@ -146,7 +146,43 @@ export default function DashboardPage() {
     return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  // Authenticate user check on mount
+  // Tenders & Auctions Normalization to prevent type errors across Admin/User schemas
+  const normalizeTenders = (raw: any[]): TenderItem[] => {
+    return raw.map(item => ({
+      id: item.id,
+      title: item.title,
+      dept: item.dept || item.client || '',
+      location: item.location || '',
+      value: item.value || '',
+      deadline: item.deadline || item.closingDate || '',
+      match: item.match || item.matchType || 'High Match',
+      status: item.status || 'active',
+      myBid: item.myBid || undefined
+    }));
+  };
+
+  const normalizeAuctions = (raw: any[]): ArenaAuctionItem[] => {
+    return raw.map(item => {
+      let parsedLowest = 12500;
+      if (typeof item.lowestBid === 'number') {
+        parsedLowest = item.lowestBid;
+      } else if (item.startingValue) {
+        const numStr = item.startingValue.replace(/[^\d]/g, '');
+        parsedLowest = parseInt(numStr, 10) || 12500;
+      }
+      return {
+        id: item.id,
+        title: item.title,
+        lowestBid: parsedLowest,
+        type: item.type || 'arena',
+        timeLeft: item.timeLeft || item.duration || '03:45',
+        status: item.status === 'Live' ? 'active' : (item.status || 'active'),
+        myBid: item.myBid || undefined
+      };
+    });
+  };
+
+  // Authenticate user & load repository lists on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const loggedIn = localStorage.getItem('logged-in-user');
@@ -162,6 +198,24 @@ export default function DashboardPage() {
           setActiveTab(tabParam);
         }
       }
+
+      // Load persistent listings
+      const savedTenders = localStorage.getItem('user-tenders');
+      if (savedTenders) {
+        try {
+          setTenders(normalizeTenders(JSON.parse(savedTenders)));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      const savedAuctions = localStorage.getItem('user-auctions');
+      if (savedAuctions) {
+        try {
+          setAuctions(normalizeAuctions(JSON.parse(savedAuctions)));
+        } catch (e) {
+          console.error(e);
+        }
+      }
     }
   }, [router]);
 
@@ -175,23 +229,44 @@ export default function DashboardPage() {
     e.preventDefault();
     if (!selectedTender || !bidValue) return;
 
-    setTenders(prev =>
-      prev.map(t =>
-        t.id === selectedTender.id ? { ...t, status: 'submitted', myBid: `₹ ${parseFloat(bidValue).toLocaleString()} Crores` } : t
-      )
+    const updated = tenders.map(t =>
+      t.id === selectedTender.id ? { ...t, status: 'submitted' as const, myBid: `₹ ${parseFloat(bidValue).toLocaleString()} Crores` } : t
     );
+    setTenders(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('user-tenders', JSON.stringify(updated));
+    }
     alert(`Bid of ${bidValue} Crores submitted successfully for Tender ${selectedTender.id}!`);
     setSelectedTender(null);
     setBidValue('');
   };
 
+  // Quick Apply Modal States
+  const [quickApplyTender, setQuickApplyTender] = useState<TenderItem | null>(null);
+  const [quickApplyStep, setQuickApplyStep] = useState(1); // 1: Review, 2: Loading, 3: Success
+  const [quickApplyBidValue, setQuickApplyBidValue] = useState('');
+
   const handleQuickApply = (item: TenderItem) => {
-    setTenders(prev =>
-      prev.map(t =>
-        t.id === item.id ? { ...t, status: 'submitted', myBid: 'Quick Apply Vault' } : t
-      )
-    );
-    alert(`Quick Apply Vault Submission successful for Tender ${item.id}! Pre-uploaded documents securely fetched and signed.`);
+    setQuickApplyTender(item);
+    setQuickApplyStep(1);
+    setQuickApplyBidValue('');
+  };
+
+  const executeQuickApply = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!quickApplyTender || !quickApplyBidValue) return;
+    setQuickApplyStep(2); // Set loading view
+
+    setTimeout(() => {
+      const updated = tenders.map(t =>
+        t.id === quickApplyTender.id ? { ...t, status: 'submitted' as const, myBid: `₹ ${parseFloat(quickApplyBidValue).toLocaleString()} Crores (Vault)` } : t
+      );
+      setTenders(updated);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('user-tenders', JSON.stringify(updated));
+      }
+      setQuickApplyStep(3); // Set success view
+    }, 1800);
   };
 
   const handleReverseArenaBid = (e: React.FormEvent) => {
@@ -206,11 +281,13 @@ export default function DashboardPage() {
       return;
     }
 
-    setAuctions(prev =>
-      prev.map(a =>
-        a.id === 'OSD/7734' ? { ...a, lowestBid: bidVal, status: 'placed', myBid: bidVal } : a
-      )
+    const updated = auctions.map(a =>
+      a.id === 'OSD/7734' ? { ...a, lowestBid: bidVal, status: 'placed' as const, myBid: bidVal } : a
     );
+    setAuctions(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('user-auctions', JSON.stringify(updated));
+    }
     alert(`Bid placed! New Lowest bid in Arena is now ₹${bidVal.toLocaleString()}`);
     setReverseArenaBidOpen(false);
     setReverseBidInput('');
@@ -405,7 +482,7 @@ export default function DashboardPage() {
                           >
                             <span className="font-bold text-[11px]">Submitted</span>
                             <span className="text-[8px] opacity-80 leading-none mt-0.5">
-                              {item.myBid === 'Quick Apply Vault' ? 'Vault Record Synced' : 'Bid Submitted'}
+                              {item.myBid?.includes('Vault') ? 'Vault Record Synced' : 'Bid Submitted'}
                             </span>
                           </button>
                         )}
@@ -424,73 +501,7 @@ export default function DashboardPage() {
             {/* Right 1 column: Sidebar containing the toolcards (Reordered: Auction -> Tools -> Recommended) */}
             <div className="space-y-6 text-left">
               
-              {/* 1. Live Reverse Auction Arena (Rendered First) */}
-              <div className="bg-[#133c62] text-white rounded-xl shadow-md overflow-hidden p-6 border border-[#1b4e7e] flex flex-col justify-between relative">
-                
-                {/* Header Title */}
-                <div>
-                  <h3 className="text-sm font-bold tracking-wider uppercase opacity-90 mb-3 text-left">
-                    Live Reverse Auction Arena
-                  </h3>
 
-                  {/* Auction ID */}
-                  <div className="space-y-0.5 text-left mb-4">
-                    <span className="text-[9px] font-bold text-white/40 block uppercase">Auction ID</span>
-                    <span className="font-bold text-xs">OSD/7734 - Office Stationery Supply</span>
-                  </div>
-
-                  <div className="w-full h-px bg-white/10 mb-4" />
-
-                  {/* Pricing grid */}
-                  <div className="grid grid-cols-2 gap-4 text-left mb-4">
-                    <div>
-                      <span className="text-[9px] font-bold text-white/40 block uppercase">Current Lowest Bid</span>
-                      <span className="font-extrabold text-base text-white">₹ {currentLowestBid.toLocaleString()}</span>
-                    </div>
-                    <div>
-                      <span className="text-[9px] font-bold text-white/40 block uppercase">Time Left</span>
-                      <span className="font-bold text-xs bg-rose-500/20 text-rose-300 px-2 py-0.5 rounded border border-rose-500/30 whitespace-nowrap">
-                        ⏳ {formatTime(timeLeftSeconds)} mins
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Live wave visualization SVG chart */}
-                <div className="w-full h-20 mb-6 relative">
-                  <svg className="w-full h-full" viewBox="0 0 340 100" preserveAspectRatio="none">
-                    <defs>
-                      <linearGradient id="waveGradientTenderArenaSide" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#f0803c" stopOpacity="0.2" />
-                        <stop offset="100%" stopColor="#f0803c" stopOpacity="0" />
-                      </linearGradient>
-                    </defs>
-                    <path
-                      d="M10,100 L10,80 Q30,65 50,50 T90,90 T130,60 T170,80 T210,40 T250,85 T290,50 T330,60 L330,100 Z"
-                      fill="url(#waveGradientTenderArenaSide)"
-                    />
-                    <path
-                      d="M10,80 Q30,65 50,50 T90,90 T130,60 T170,80 T210,40 T250,85 T290,50 T330,60"
-                      fill="none"
-                      stroke="#f0803c"
-                      strokeWidth="2.5"
-                    />
-                    <circle cx="50" cy="50" r="4.5" fill="#f0803c" stroke="#133c62" strokeWidth="1.5" />
-                    <circle cx="130" cy="60" r="4.5" fill="#f0803c" stroke="#133c62" strokeWidth="1.5" />
-                    <circle cx="210" cy="40" r="4.5" fill="#f0803c" stroke="#133c62" strokeWidth="1.5" />
-                    <circle cx="290" cy="50" r="4.5" fill="#f0803c" stroke="#133c62" strokeWidth="1.5" />
-                  </svg>
-                </div>
-
-                {/* Orange Action Button */}
-                <button
-                  onClick={() => setReverseArenaBidOpen(true)}
-                  className="w-full py-3 bg-[#e07a5f] hover:bg-[#cf6b50] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer text-center shadow-md select-none"
-                >
-                  Place Lower Bid Now
-                </button>
-
-              </div>
 
               {/* 2. Tender Management Tools (Rendered Second) */}
               <div className="bg-[#133c62] text-white rounded-xl shadow-md overflow-hidden p-6 border border-[#1b4e7e]">
@@ -918,49 +929,149 @@ export default function DashboardPage() {
               <p><strong>Submission Deadline:</strong> {selectedTender.deadline}</p>
             </div>
 
-            <form onSubmit={handleTenderBidSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-widest mb-1.5">
-                  Enter Your Bid Value (in Crores)
-                </label>
-                <div className="relative rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 font-bold text-xs">
-                    ₹
+            <div className="flex gap-2.5 pt-2 justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedTender(null)}
+                className="px-5 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Apply Vault Modal */}
+      {quickApplyTender && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-md w-full p-6 text-left space-y-4">
+            
+            {quickApplyStep === 1 && (
+              <form onSubmit={executeQuickApply} className="space-y-4">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <span className="text-[9px] font-bold bg-[#1b4e7e] text-white px-2 py-0.5 rounded">NIC VAULT QUICK APPLY</span>
+                    <h3 className="text-base font-bold text-slate-800 mt-2">Confirm Quick Apply Bid</h3>
                   </div>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={bidValue}
-                    onChange={(e) => setBidValue(e.target.value)}
-                    className="w-full pl-7 pr-16 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-slate-800"
-                    placeholder="e.g. 45.80"
-                  />
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400 font-bold text-[10px] uppercase">
-                    Crores
+                  <button
+                    type="button"
+                    onClick={() => setQuickApplyTender(null)}
+                    className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="bg-[#f0f6fc] p-4 rounded-lg border border-slate-200/50 space-y-2 text-xs text-slate-700">
+                  <p><span className="text-slate-400 font-semibold">Tender ID:</span> <span className="font-bold text-slate-800">{quickApplyTender.id}</span></p>
+                  <p><span className="text-slate-400 font-semibold">Tender Title:</span> <span className="font-bold text-slate-800">{quickApplyTender.title}</span></p>
+                  <p><span className="text-slate-400 font-semibold">Department:</span> <span className="font-bold text-slate-800">{quickApplyTender.dept}</span></p>
+                  <p><span className="text-slate-400 font-semibold">Est. Value:</span> <span className="font-bold text-slate-800">{quickApplyTender.value}</span></p>
+                </div>
+
+                <div className="space-y-2">
+                  <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">Documents to be attached from Vault</span>
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                    {[
+                      'GSTIN_Registration_Certificate.pdf',
+                      'PAN_Corporate_Card_Verification.pdf',
+                      'Contractor_Class-I_License.pdf',
+                      'Latest_ITR_Form-5_AY24.pdf'
+                    ].map((name, idx) => (
+                      <div key={idx} className="flex items-center justify-between text-[11px] p-2 bg-slate-50 border border-slate-200 rounded">
+                        <span className="truncate text-slate-600 font-medium">{name}</span>
+                        <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full shrink-0">Ready</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-1 leading-snug">
-                  Provide competitive bids below the estimated tender value.
-                </p>
-              </div>
 
-              <div className="flex gap-2.5 pt-2 justify-end">
+                {/* Bid Value Input Form from Image 2 */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-widest mb-1.5">
+                    Enter Your Bid Value (in Crores)
+                  </label>
+                  <div className="relative rounded-md shadow-sm">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 font-bold text-xs">
+                      ₹
+                    </div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      value={quickApplyBidValue}
+                      onChange={(e) => setQuickApplyBidValue(e.target.value)}
+                      className="w-full pl-7 pr-16 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-slate-800"
+                      placeholder="e.g. 45.80"
+                    />
+                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400 font-bold text-[10px] uppercase">
+                      Crores
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 mt-1 leading-snug">
+                    Provide competitive bids below the estimated tender value.
+                  </p>
+                </div>
+
+                <div className="flex gap-2.5 pt-3 border-t border-slate-100 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setQuickApplyTender(null)}
+                    className="px-4 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2 bg-[#1b4e7e] hover:bg-[#133c62] text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-sm"
+                  >
+                    Confirm & Apply
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {quickApplyStep === 2 && (
+              <div className="py-8 flex flex-col items-center justify-center text-center space-y-4">
+                <div className="w-10 h-10 border-4 border-[#1b4e7e] border-t-transparent rounded-full animate-spin"></div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-slate-800">Submitting Vault Application</h4>
+                  <p className="text-[11px] text-slate-500 max-w-xs leading-relaxed">
+                    Connecting to NIC Vault, downloading verified compliance certificates, and applying digital signature...
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {quickApplyStep === 3 && (
+              <div className="py-6 flex flex-col items-center justify-center text-center space-y-4">
+                <div className="w-12 h-12 bg-emerald-100 border border-emerald-200 rounded-full flex items-center justify-center text-emerald-600">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5"/>
+                  </svg>
+                </div>
+                <div className="space-y-1.5">
+                  <h4 className="text-sm font-bold text-slate-800">Application Submitted!</h4>
+                  <p className="text-[11px] text-slate-500 max-w-xs leading-relaxed">
+                    Your bid for <span className="font-bold text-slate-700">{quickApplyTender.title}</span> has been published successfully.
+                  </p>
+                  <div className="bg-slate-50 p-2 rounded border border-slate-100 text-[10px] text-slate-400 font-mono select-all">
+                    Bid Sync Token: GeM-VAULT-228749
+                  </div>
+                </div>
                 <button
                   type="button"
-                  onClick={() => setSelectedTender(null)}
-                  className="px-4 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 text-xs font-bold transition-colors cursor-pointer"
+                  onClick={() => setQuickApplyTender(null)}
+                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-sm mt-2"
                 >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-sm"
-                >
-                  Submit Bid
+                  Return to Dashboard
                 </button>
               </div>
-            </form>
+            )}
+
           </div>
         </div>
       )}
