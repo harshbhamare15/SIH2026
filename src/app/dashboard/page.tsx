@@ -365,8 +365,31 @@ export default function DashboardPage() {
 
         </div>
       </nav>
-
-      {/* 2. Main content dashboard */}
+ 
+      {/* 2. Sub-Navigation Tabs Bar */}
+      <div className="w-full bg-white border-b border-slate-200/80 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4">
+          <div className="flex gap-8 items-center h-12 text-sm font-semibold">
+            <button className="text-[#1b4e7e] border-b-2 border-[#1b4e7e] h-full px-1 flex items-center cursor-pointer select-none">
+              Dashboard
+            </button>
+            <button className="text-slate-500 hover:text-[#1b4e7e] border-b-2 border-transparent transition-colors h-full px-1 flex items-center cursor-pointer select-none">
+              Find Tenders
+            </button>
+            <button className="text-slate-500 hover:text-[#1b4e7e] border-b-2 border-transparent transition-colors h-full px-1 flex items-center cursor-pointer select-none">
+              Live Auctions
+            </button>
+            <button className="text-slate-500 hover:text-[#1b4e7e] border-b-2 border-transparent transition-colors h-full px-1 flex items-center cursor-pointer select-none">
+              My Bids
+            </button>
+            <button className="text-slate-500 hover:text-[#1b4e7e] border-b-2 border-transparent transition-colors h-full px-1 flex items-center cursor-pointer select-none">
+              Document Vault
+            </button>
+          </div>
+        </div>
+      </div>
+ 
+      {/* 3. Main content dashboard */}
       <main className="flex-grow max-w-7xl mx-auto px-4 py-8 w-full space-y-6">
         
         {/* Welcome message */}
