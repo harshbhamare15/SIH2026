@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
 // Force re-build clean swc cache
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import FooterSimple from '@/components/FooterSimple';
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import FooterSimple from "@/components/FooterSimple";
 
 interface UserProfile {
   fullName: string;
@@ -21,8 +21,8 @@ interface TenderItem {
   location: string;
   value: string;
   deadline: string;
-  match: 'High Match' | 'Medium Match';
-  status: 'active' | 'submitted';
+  match: "High Match" | "Medium Match";
+  status: "active" | "submitted";
   myBid?: string;
 }
 
@@ -30,111 +30,448 @@ interface ArenaAuctionItem {
   id: string;
   title: string;
   lowestBid: number;
-  type: 'arena' | 'sub';
+  type: "arena" | "sub";
   timeLeft: string;
-  status: 'active' | 'placed';
+  status: "active" | "placed";
   myBid?: number;
 }
 
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [activeTab, setActiveTab] = useState<'tender' | 'auction'>('tender');
+  const [activeTab, setActiveTab] = useState<"tender" | "auction">("tender");
   const [profileOpen, setProfileOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const [activeSubNav, setActiveSubNav] = useState<
+    | "dashboard"
+    | "live"
+    | "find"
+    | "categories"
+    | "applied"
+    | "history"
+    | "upcoming"
+  >("dashboard");
+
+  const [auctionSubNav, setAuctionSubNav] = useState<
+    "live" | "my-bids" | "categories" | "history" | "ledger"
+  >("live");
 
   // Sidebar interactive states
   const [filterSubmittedOnly, setFilterSubmittedOnly] = useState(false);
   const [vaultOpen, setVaultOpen] = useState(false);
   const [reverseArenaBidOpen, setReverseArenaBidOpen] = useState(false);
-  const [reverseBidInput, setReverseBidInput] = useState('');
+  const [reverseBidInput, setReverseBidInput] = useState("");
 
   // Reverse Arena Timer: countdown from 3 minutes 45 seconds (225s)
   const [timeLeftSeconds, setTimeLeftSeconds] = useState(225);
 
   // Modals state
   const [selectedTender, setSelectedTender] = useState<TenderItem | null>(null);
-  const [bidValue, setBidValue] = useState('');
+  const [bidValue, setBidValue] = useState("");
+
+  const liveTenderData = [
+    {
+      id: "LT/2026/00124",
+      title: "National Highway Expansion - Package 7",
+      department: "National Highways Authority",
+      category: "Infrastructure",
+      location: "Maharashtra",
+      value: "₹550 Crores",
+      deadline: "22 Oct 2026",
+      status: "Live",
+      match: "High Match",
+    },
+    {
+      id: "LT/2026/00125",
+      title: "Supply of High-Resolution Medical Monitors",
+      department: "AIIMS New Delhi",
+      category: "Medical Equipment",
+      location: "Delhi",
+      value: "₹12.30 Crores",
+      deadline: "03 Sep 2026",
+      status: "Live",
+      match: "High Match",
+    },
+    {
+      id: "LT/2026/00126",
+      title: "IT Infrastructure Servers & Network Upgrade",
+      department: "National Informatics Centre",
+      category: "Information Technology",
+      location: "Karnataka",
+      value: "₹5.80 Crores",
+      deadline: "18 Aug 2026",
+      status: "Live",
+      match: "Medium Match",
+    },
+    {
+      id: "LT/2026/00127",
+      title: "Rooftop Solar Power Plant Commission",
+      department: "IIT Delhi Engineering Wing",
+      category: "Renewable Energy",
+      location: "Delhi",
+      value: "₹2.10 Crores",
+      deadline: "30 Aug 2026",
+      status: "Live",
+      match: "High Match",
+    },
+  ];
+
+  const findTenderData = [
+    {
+      id: "FT/2026/00401",
+      title: "Construction of Government Residential Complex",
+      department: "Public Works Department",
+      category: "Construction",
+      location: "Pune, Maharashtra",
+      value: "₹85 Crores",
+      deadline: "15 Sep 2026",
+    },
+    {
+      id: "FT/2026/00402",
+      title: "Cloud Infrastructure & Data Center Services",
+      department: "Ministry of Electronics",
+      category: "IT Services",
+      location: "Bengaluru, Karnataka",
+      value: "₹24 Crores",
+      deadline: "28 Sep 2026",
+    },
+    {
+      id: "FT/2026/00403",
+      title: "Supply of Hospital Furniture",
+      department: "Health Department",
+      category: "Healthcare",
+      location: "Mumbai, Maharashtra",
+      value: "₹7.5 Crores",
+      deadline: "10 Sep 2026",
+    },
+    {
+      id: "FT/2026/00404",
+      title: "Solar Street Lighting Project",
+      department: "Energy Department",
+      category: "Renewable Energy",
+      location: "Ahmedabad, Gujarat",
+      value: "₹18 Crores",
+      deadline: "05 Oct 2026",
+    },
+  ];
+
+  const categoryData = [
+    {
+      name: "Infrastructure",
+      count: 24,
+      description: "Roads, highways, bridges and infrastructure projects",
+    },
+    {
+      name: "Information Technology",
+      count: 18,
+      description: "Software, hardware, networking and IT services",
+    },
+    {
+      name: "Healthcare",
+      count: 15,
+      description: "Medical equipment, hospitals and healthcare supplies",
+    },
+    {
+      name: "Construction",
+      count: 21,
+      description: "Buildings, civil works and construction projects",
+    },
+    {
+      name: "Renewable Energy",
+      count: 12,
+      description: "Solar, wind and clean energy projects",
+    },
+    {
+      name: "Transportation",
+      count: 9,
+      description: "Transport, logistics and vehicle related tenders",
+    },
+  ];
+
+  const appliedTenderData = [
+    {
+      id: "AT/2026/00101",
+      title: "Medical Equipment Supply - Phase II",
+      department: "AIIMS New Delhi",
+      category: "Medical Equipment",
+      submittedOn: "02 Aug 2026",
+      bidAmount: "₹11.85 Crores",
+      status: "Under Evaluation",
+    },
+    {
+      id: "AT/2026/00102",
+      title: "IT Infrastructure Upgrade",
+      department: "National Informatics Centre",
+      category: "Information Technology",
+      submittedOn: "30 Jul 2026",
+      bidAmount: "₹5.45 Crores",
+      status: "Technical Evaluation",
+    },
+    {
+      id: "AT/2026/00103",
+      title: "Solar Power Plant Installation",
+      department: "Energy Department",
+      category: "Renewable Energy",
+      submittedOn: "25 Jul 2026",
+      bidAmount: "₹1.95 Crores",
+      status: "Under Evaluation",
+    },
+  ];
+
+  const pastHistoryData = [
+    {
+      id: "PH/2026/00041",
+      title: "Government Office Furniture Supply",
+      department: "General Administration",
+      category: "Furniture",
+      appliedOn: "12 Jun 2026",
+      bidAmount: "₹2.40 Crores",
+      result: "Not Selected",
+    },
+    {
+      id: "PH/2026/00042",
+      title: "Road Maintenance Package - 4",
+      department: "PWD Maharashtra",
+      category: "Infrastructure",
+      appliedOn: "05 Jun 2026",
+      bidAmount: "₹8.20 Crores",
+      result: "Awarded",
+    },
+    {
+      id: "PH/2026/00043",
+      title: "Computer Hardware Procurement",
+      department: "Government IT Department",
+      category: "Information Technology",
+      appliedOn: "20 May 2026",
+      bidAmount: "₹1.15 Crores",
+      result: "Not Selected",
+    },
+  ];
+
+  const upcomingTenderData = [
+    {
+      id: "UP/2026/00301",
+      title: "Mumbai Metro Electrical Infrastructure",
+      department: "Metro Rail Corporation",
+      category: "Infrastructure",
+      location: "Mumbai",
+      openingDate: "18 Aug 2026",
+      value: "₹120 Crores",
+    },
+    {
+      id: "UP/2026/00302",
+      title: "AI-Based Hospital Management System",
+      department: "Health Department",
+      category: "Information Technology",
+      location: "Gujarat",
+      openingDate: "22 Aug 2026",
+      value: "₹16 Crores",
+    },
+    {
+      id: "UP/2026/00303",
+      title: "Solar Rooftop Installation - Phase III",
+      department: "Renewable Energy Corporation",
+      category: "Renewable Energy",
+      location: "Rajasthan",
+      openingDate: "27 Aug 2026",
+      value: "₹42 Crores",
+    },
+  ];
 
   // Mock states for Tenders (aligned with user's target cards layout)
   const [tenders, setTenders] = useState<TenderItem[]>([
     {
-      id: 'NHAI/009123',
-      title: 'National Highway Expansion - Package 7',
-      dept: 'National Highways Authority',
-      location: 'Maharashtra',
-      value: '₹550 Crores',
-      deadline: '4 Days (22 Oct 2026)',
-      match: 'High Match',
-      status: 'active'
+      id: "NHAI/009123",
+      title: "National Highway Expansion - Package 7",
+      dept: "National Highways Authority",
+      location: "Maharashtra",
+      value: "₹550 Crores",
+      deadline: "4 Days (22 Oct 2026)",
+      match: "High Match",
+      status: "active",
     },
     {
-      id: 'AIIMS/004812',
-      title: 'Supply of High-Resolution Medical Monitors',
-      dept: 'AIIMS New Delhi',
-      location: 'Delhi NCR',
-      value: '₹12.30 Crores',
-      deadline: '12 Days (03 Sep 2026)',
-      match: 'High Match',
-      status: 'active'
+      id: "AIIMS/004812",
+      title: "Supply of High-Resolution Medical Monitors",
+      dept: "AIIMS New Delhi",
+      location: "Delhi NCR",
+      value: "₹12.30 Crores",
+      deadline: "12 Days (03 Sep 2026)",
+      match: "High Match",
+      status: "active",
     },
     {
-      id: 'NIC/007391',
-      title: 'IT Infrastructure Servers & Network Upgrade',
-      dept: 'National Informatics Centre',
-      location: 'Karnataka',
-      value: '₹5.80 Crores',
-      deadline: '8 Days (18 Aug 2026)',
-      match: 'Medium Match',
-      status: 'active'
+      id: "NIC/007391",
+      title: "IT Infrastructure Servers & Network Upgrade",
+      dept: "National Informatics Centre",
+      location: "Karnataka",
+      value: "₹5.80 Crores",
+      deadline: "8 Days (18 Aug 2026)",
+      match: "Medium Match",
+      status: "active",
     },
     {
-      id: 'IITD/005231',
-      title: 'Rooftop Solar Power Plant Commission (500kW)',
-      dept: 'IIT Delhi Engineering Wing',
-      location: 'Delhi',
-      value: '₹2.10 Crores',
-      deadline: '6 Days (16 Aug 2026)',
-      match: 'High Match',
-      status: 'active'
+      id: "IITD/005231",
+      title: "Rooftop Solar Power Plant Commission (500kW)",
+      dept: "IIT Delhi Engineering Wing",
+      location: "Delhi",
+      value: "₹2.10 Crores",
+      deadline: "6 Days (16 Aug 2026)",
+      match: "High Match",
+      status: "active",
     },
   ]);
 
   // Mock state for Arena Auctions (supporting functional search filtering)
   const [auctions, setAuctions] = useState<ArenaAuctionItem[]>([
     {
-      id: 'OSD/7734',
-      title: 'Office Stationery Supply',
+      id: "OSD/7734",
+      title: "Office Stationery Supply",
       lowestBid: 12500,
-      type: 'arena',
-      timeLeft: '03:45',
-      status: 'active'
+      type: "arena",
+      timeLeft: "03:45",
+      status: "active",
     },
     {
-      id: 'RA-9012',
-      title: 'Heavy Machinery',
+      id: "RA-9012",
+      title: "Heavy Machinery",
       lowestBid: 90012,
-      type: 'sub',
-      timeLeft: '03 | 04:00 | 05',
-      status: 'active'
+      type: "sub",
+      timeLeft: "03 | 04:00 | 05",
+      status: "active",
     },
     {
-      id: 'RA-8855',
-      title: 'Steel Beam Procurement',
+      id: "RA-8855",
+      title: "Steel Beam Procurement",
       lowestBid: 34950,
-      type: 'sub',
-      timeLeft: '08 | 05:24 | 05',
-      status: 'active'
-    }
+      type: "sub",
+      timeLeft: "08 | 05:24 | 05",
+      status: "active",
+    },
   ]);
 
+  const liveAuctionData = [
+    {
+      id: "AUC/REV/2026/00412",
+      title: "Live Reverse Auction for Supply of 500 Enterprise Laptops",
+      tenderRef: "MeitY/IT/2026/8912",
+      type: "Reverse Procurement (L1 Price Drops)",
+      lowestBid: "₹2,15,00,000",
+      bidder: "Bidder #804",
+      rank: "Rank 2 (L2)",
+      decrement: "₹50,000",
+      time: "00:03:45",
+      settlement: "ERC-721 Work Order NFT",
+      settlementInfo: "Minted to L1 Winner on Close",
+      mode: "Reverse",
+    },
+    {
+      id: "AUC/FWD/2026/00189",
+      title: "Commercial Land Lease Rights & Scrap Equipment Auction",
+      issuingBody: "Industrial Development Corporation",
+      type: "Forward Asset Sale (H1 Price Rises)",
+      nftBadge: "ERC-721 Property Deed NFT #8901",
+      nftInfo: "IPFS Verified Title & Lease Metadata",
+      basePrice: "₹1.50 Crores",
+      highestBid: "₹2.10 Crores",
+      bidder: "Bidder #109",
+      increment: "₹1,000",
+      time: "01 Hours 12 Minutes",
+      mode: "Forward",
+    },
+  ];
+
+  const myAuctionBids = [
+    {
+      id: "AUC/REV/2026/00388",
+      title: "Live Reverse Auction for Highway Paving Contract",
+      price: "₹11,40,00,000",
+      status: "OUTBID — ACTION REQUIRED",
+      rank: "Your Rank: L2",
+      escrow: "10.0 Test-ETH Locked in Smart Contract Escrow",
+      hash: "0x4f8c21a990e72...",
+      settlement: "Work Order NFT #2026-NHAI",
+      type: "active",
+    },
+    {
+      id: "AUC/REV/2026/00412",
+      title: "Supply of 500 Enterprise Laptops",
+      price: "₹2,15,00,000",
+      status: "AUCTION WON",
+      rank: "L1 Winner",
+      escrow: "Settlement Ready",
+      hash: "0x91a73bc2219f...",
+      settlement: "Tender Contract NFT",
+      type: "won",
+    },
+  ];
+
+  const auctionCategories = [
+    {
+      title: "Reverse Procurement Auctions (e-RA)",
+      count: "180 Active Rounds",
+      description: "Settlement with milestone-based procurement contracts.",
+      settlement: "ERC-721 Work Order NFTs",
+      icon: "↘",
+    },
+    {
+      title: "Government Land, Real Estate & Mining Rights",
+      count: "42 Active Rounds",
+      description: "Legal lease deeds with geo-mapped metadata.",
+      settlement: "ERC-721 Property Deed NFTs",
+      icon: "⌂",
+    },
+    {
+      title: "Surplus Industrial Machinery & Heavy Equipment",
+      count: "95 Active Rounds",
+      description: "Digital ownership receipts and machinery history.",
+      settlement: "ERC-721 Asset Title NFTs",
+      icon: "⚙",
+    },
+    {
+      title: "Vehicles & Transport Fleet Liquidation",
+      count: "60 Active Rounds",
+      description: "Vehicle identification and digital registration.",
+      settlement: "ERC-721 Fleet Ownership NFTs",
+      icon: "▣",
+    },
+  ];
+
+  const auctionHistory = [
+    {
+      id: "AUC/REV/2025/00912",
+      title: "Reverse Auction for Medical ICU Monitor Supply",
+      status: "CLOSED — CONTRACT AWARDED (L1)",
+      winner: "Precision Health Tech Ltd (Bidder #402)",
+      price: "₹11.80 Crores",
+      saving: "Base Price: ₹12.30 Cr — Saved ₹50 Lakhs",
+      hash: "0x7b11a288c001...",
+      contract: "0x3a291f...89f",
+      type: "Reverse Auction — Work Order NFT",
+    },
+    {
+      id: "AUC/FWD/2025/00411",
+      title: "Commercial Plot Lease Allotment (Plot 44, GIDC)",
+      status: "CLOSED — ASSET TRANSFERRED (H1)",
+      winner: "Apex Logistics Corp (Bidder #103)",
+      price: "₹3.45 Crores",
+      saving: "Final Winning Price (H1)",
+      hash: "ERC-721 Property NFT #8901",
+      contract: "Transferred to 0x103...91a",
+      type: "Forward Auction — Property Deed NFT",
+    },
+  ];
+
   // Count active bids
-  const activeBidsCount = tenders.filter(t => t.status === 'submitted').length;
+  const activeBidsCount = tenders.filter(
+    (t) => t.status === "submitted",
+  ).length;
 
   // Reverse Arena Timer ticker
   useEffect(() => {
     const timer = setInterval(() => {
-      setTimeLeftSeconds(prev => (prev > 0 ? prev - 1 : 225));
+      setTimeLeftSeconds((prev) => (prev > 0 ? prev - 1 : 225));
     }, 1000);
     return () => clearInterval(timer);
   }, []);
@@ -143,64 +480,64 @@ export default function DashboardPage() {
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
     const s = secs % 60;
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
   // Tenders & Auctions Normalization to prevent type errors across Admin/User schemas
   const normalizeTenders = (raw: any[]): TenderItem[] => {
-    return raw.map(item => ({
+    return raw.map((item) => ({
       id: item.id,
       title: item.title,
-      dept: item.dept || item.client || '',
-      location: item.location || '',
-      value: item.value || '',
-      deadline: item.deadline || item.closingDate || '',
-      match: item.match || item.matchType || 'High Match',
-      status: item.status || 'active',
-      myBid: item.myBid || undefined
+      dept: item.dept || item.client || "",
+      location: item.location || "",
+      value: item.value || "",
+      deadline: item.deadline || item.closingDate || "",
+      match: item.match || item.matchType || "High Match",
+      status: item.status || "active",
+      myBid: item.myBid || undefined,
     }));
   };
 
   const normalizeAuctions = (raw: any[]): ArenaAuctionItem[] => {
-    return raw.map(item => {
+    return raw.map((item) => {
       let parsedLowest = 12500;
-      if (typeof item.lowestBid === 'number') {
+      if (typeof item.lowestBid === "number") {
         parsedLowest = item.lowestBid;
       } else if (item.startingValue) {
-        const numStr = item.startingValue.replace(/[^\d]/g, '');
+        const numStr = item.startingValue.replace(/[^\d]/g, "");
         parsedLowest = parseInt(numStr, 10) || 12500;
       }
       return {
         id: item.id,
         title: item.title,
         lowestBid: parsedLowest,
-        type: item.type || 'arena',
-        timeLeft: item.timeLeft || item.duration || '03:45',
-        status: item.status === 'Live' ? 'active' : (item.status || 'active'),
-        myBid: item.myBid || undefined
+        type: item.type || "arena",
+        timeLeft: item.timeLeft || item.duration || "03:45",
+        status: item.status === "Live" ? "active" : item.status || "active",
+        myBid: item.myBid || undefined,
       };
     });
   };
 
   // Authenticate user & load repository lists on mount
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const loggedIn = localStorage.getItem('logged-in-user');
+    if (typeof window !== "undefined") {
+      const loggedIn = localStorage.getItem("logged-in-user");
       if (!loggedIn) {
-        alert('Unauthorized access. Redirecting to login page.');
-        router.push('/login');
+        alert("Unauthorized access. Redirecting to login page.");
+        router.push("/login");
       } else {
         const parsed = JSON.parse(loggedIn);
         setUser(parsed);
         const params = new URLSearchParams(window.location.search);
-        const tabParam = params.get('tab');
-        if (tabParam === 'tender' || tabParam === 'auction') {
+        const tabParam = params.get("tab");
+        if (tabParam === "tender" || tabParam === "auction") {
           setActiveTab(tabParam);
         }
       }
 
       // Load persistent listings
-      const savedTenders = localStorage.getItem('user-tenders');
+      const savedTenders = localStorage.getItem("user-tenders");
       if (savedTenders) {
         try {
           setTenders(normalizeTenders(JSON.parse(savedTenders)));
@@ -208,7 +545,7 @@ export default function DashboardPage() {
           console.error(e);
         }
       }
-      const savedAuctions = localStorage.getItem('user-auctions');
+      const savedAuctions = localStorage.getItem("user-auctions");
       if (savedAuctions) {
         try {
           setAuctions(normalizeAuctions(JSON.parse(savedAuctions)));
@@ -220,36 +557,46 @@ export default function DashboardPage() {
   }, [router]);
 
   const handleLogout = () => {
-    localStorage.removeItem('logged-in-user');
-    alert('Logged out successfully.');
-    router.push('/');
+    localStorage.removeItem("logged-in-user");
+    alert("Logged out successfully.");
+    router.push("/");
   };
 
   const handleTenderBidSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedTender || !bidValue) return;
 
-    const updated = tenders.map(t =>
-      t.id === selectedTender.id ? { ...t, status: 'submitted' as const, myBid: `₹ ${parseFloat(bidValue).toLocaleString()} Crores` } : t
+    const updated = tenders.map((t) =>
+      t.id === selectedTender.id
+        ? {
+            ...t,
+            status: "submitted" as const,
+            myBid: `₹ ${parseFloat(bidValue).toLocaleString()} Crores`,
+          }
+        : t,
     );
     setTenders(updated);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('user-tenders', JSON.stringify(updated));
+    if (typeof window !== "undefined") {
+      localStorage.setItem("user-tenders", JSON.stringify(updated));
     }
-    alert(`Bid of ${bidValue} Crores submitted successfully for Tender ${selectedTender.id}!`);
+    alert(
+      `Bid of ${bidValue} Crores submitted successfully for Tender ${selectedTender.id}!`,
+    );
     setSelectedTender(null);
-    setBidValue('');
+    setBidValue("");
   };
 
   // Quick Apply Modal States
-  const [quickApplyTender, setQuickApplyTender] = useState<TenderItem | null>(null);
+  const [quickApplyTender, setQuickApplyTender] = useState<TenderItem | null>(
+    null,
+  );
   const [quickApplyStep, setQuickApplyStep] = useState(1); // 1: Review, 2: Loading, 3: Success
-  const [quickApplyBidValue, setQuickApplyBidValue] = useState('');
+  const [quickApplyBidValue, setQuickApplyBidValue] = useState("");
 
   const handleQuickApply = (item: TenderItem) => {
     setQuickApplyTender(item);
     setQuickApplyStep(1);
-    setQuickApplyBidValue('');
+    setQuickApplyBidValue("");
   };
 
   const executeQuickApply = (e: React.FormEvent) => {
@@ -258,12 +605,18 @@ export default function DashboardPage() {
     setQuickApplyStep(2); // Set loading view
 
     setTimeout(() => {
-      const updated = tenders.map(t =>
-        t.id === quickApplyTender.id ? { ...t, status: 'submitted' as const, myBid: `₹ ${parseFloat(quickApplyBidValue).toLocaleString()} Crores (Vault)` } : t
+      const updated = tenders.map((t) =>
+        t.id === quickApplyTender.id
+          ? {
+              ...t,
+              status: "submitted" as const,
+              myBid: `₹ ${parseFloat(quickApplyBidValue).toLocaleString()} Crores (Vault)`,
+            }
+          : t,
       );
       setTenders(updated);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('user-tenders', JSON.stringify(updated));
+      if (typeof window !== "undefined") {
+        localStorage.setItem("user-tenders", JSON.stringify(updated));
       }
       setQuickApplyStep(3); // Set success view
     }, 1800);
@@ -274,77 +627,162 @@ export default function DashboardPage() {
     const bidVal = parseFloat(reverseBidInput);
     if (isNaN(bidVal)) return;
 
-    const currentLowest = auctions.find(a => a.id === 'OSD/7734')?.lowestBid || 12500;
+    const currentLowest =
+      auctions.find((a) => a.id === "OSD/7734")?.lowestBid || 12500;
 
     if (bidVal >= currentLowest) {
-      alert(`In a reverse auction, your bid must be LOWER than the current lowest bid of ₹${currentLowest.toLocaleString()}`);
+      alert(
+        `In a reverse auction, your bid must be LOWER than the current lowest bid of ₹${currentLowest.toLocaleString()}`,
+      );
       return;
     }
 
-    const updated = auctions.map(a =>
-      a.id === 'OSD/7734' ? { ...a, lowestBid: bidVal, status: 'placed' as const, myBid: bidVal } : a
+    const updated = auctions.map((a) =>
+      a.id === "OSD/7734"
+        ? { ...a, lowestBid: bidVal, status: "placed" as const, myBid: bidVal }
+        : a,
     );
     setAuctions(updated);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('user-auctions', JSON.stringify(updated));
+    if (typeof window !== "undefined") {
+      localStorage.setItem("user-auctions", JSON.stringify(updated));
     }
-    alert(`Bid placed! New Lowest bid in Arena is now ₹${bidVal.toLocaleString()}`);
+    alert(
+      `Bid placed! New Lowest bid in Arena is now ₹${bidVal.toLocaleString()}`,
+    );
     setReverseArenaBidOpen(false);
-    setReverseBidInput('');
+    setReverseBidInput("");
+  };
+
+  const handleSubNavClick = (
+    tab:
+      | "dashboard"
+      | "live"
+      | "find"
+      | "categories"
+      | "applied"
+      | "history"
+      | "upcoming",
+  ) => {
+    setActiveSubNav(tab);
+    setSearchQuery("");
+
+    if (tab === "dashboard") {
+      setFilterSubmittedOnly(false);
+      return;
+    }
+
+    if (tab === "live") {
+      setActiveTab("tender");
+      setFilterSubmittedOnly(false);
+      return;
+    }
+
+    if (tab === "find") {
+      setActiveTab("tender");
+      setFilterSubmittedOnly(false);
+      return;
+    }
+
+    if (tab === "categories") {
+      setActiveTab("tender");
+      setFilterSubmittedOnly(false);
+      return;
+    }
+
+    if (tab === "applied") {
+      setActiveTab("tender");
+      setFilterSubmittedOnly(true);
+      return;
+    }
+
+    if (tab === "history") {
+      setActiveTab("tender");
+      setFilterSubmittedOnly(true);
+      return;
+    }
+
+    if (tab === "upcoming") {
+      setActiveTab("tender");
+      setFilterSubmittedOnly(false);
+      return;
+    }
   };
 
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 font-sans">
-        <div className="text-slate-600 text-sm font-semibold animate-pulse">Loading Dashboard Coordinates...</div>
+        <div className="text-slate-600 text-sm font-semibold animate-pulse">
+          Loading Dashboard Coordinates...
+        </div>
       </div>
     );
   }
 
-  // Filter lists based on Search Query
-  const baseTenders = filterSubmittedOnly ? tenders.filter(t => t.status === 'submitted') : tenders;
-  const filteredTenders = baseTenders.filter(t =>
-    t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    t.dept.toLowerCase().includes(searchQuery.toLowerCase())
+  let baseTenders = tenders;
+
+  if (activeSubNav === "applied" || activeSubNav === "history") {
+    baseTenders = tenders.filter((t) => t.status === "submitted");
+  }
+
+  if (activeSubNav === "live" || activeSubNav === "upcoming") {
+    baseTenders = tenders.filter((t) => t.status === "active");
+  }
+
+  const filteredTenders = baseTenders.filter(
+    (t) =>
+      t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.dept.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      t.location.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
-  const filteredAuctions = auctions.filter(a =>
-    a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    a.id.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredAuctions = auctions.filter(
+    (a) =>
+      a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      a.id.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   // Split filtered auctions for rendering
-  const arenaAuctionMatch = filteredAuctions.find(a => a.type === 'arena');
-  const subAuctionsMatches = filteredAuctions.filter(a => a.type === 'sub');
+  const arenaAuctionMatch = filteredAuctions.find((a) => a.type === "arena");
+  const subAuctionsMatches = filteredAuctions.filter((a) => a.type === "sub");
 
   // Dynamic lowest bid computed from current state array for sync
-  const currentLowestBid = auctions.find(a => a.id === 'OSD/7734')?.lowestBid || 12500;
+  const currentLowestBid =
+    auctions.find((a) => a.id === "OSD/7734")?.lowestBid || 12500;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-between font-sans text-left">
-      
       {/* 1. Header Navigation Bar */}
       <nav className="w-full bg-[#1b4e7e] text-white sticky top-0 z-50 shadow-md">
         <div className="max-w-7xl mx-auto px-4 flex justify-between items-center h-16">
-          
           {/* Logo brand */}
           <div className="flex items-center gap-3">
-            <span className="text-lg font-black tracking-widest text-amber-500 uppercase">GeM</span>
-            <span className="text-lg font-extrabold border-l border-white/20 pl-2">Dashboard</span>
+            <span className="text-lg font-black tracking-widest text-amber-500 uppercase">
+              GeM
+            </span>
+            <span className="text-lg font-extrabold border-l border-white/20 pl-2">
+              Dashboard
+            </span>
           </div>
 
           {/* Navigation Options: Tender & Auction */}
           <div className="flex gap-1 bg-white/10 p-1 rounded-lg">
             <button
-              onClick={() => { setActiveTab('tender'); setSearchQuery(''); setFilterSubmittedOnly(false); }}
-              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${activeTab === 'tender' ? 'bg-white text-[#1b4e7e] shadow-sm' : 'text-white hover:bg-white/5'}`}
+              onClick={() => {
+                setActiveTab("tender");
+                setSearchQuery("");
+                setFilterSubmittedOnly(false);
+              }}
+              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${activeTab === "tender" ? "bg-white text-[#1b4e7e] shadow-sm" : "text-white hover:bg-white/5"}`}
             >
               Tender
             </button>
             <button
-              onClick={() => { setActiveTab('auction'); setSearchQuery(''); }}
-              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${activeTab === 'auction' ? 'bg-white text-[#1b4e7e] shadow-sm' : 'text-white hover:bg-white/5'}`}
+              onClick={() => {
+                setActiveTab("auction");
+                setSearchQuery("");
+              }}
+              className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${activeTab === "auction" ? "bg-white text-[#1b4e7e] shadow-sm" : "text-white hover:bg-white/5"}`}
             >
               Auction
             </button>
@@ -353,493 +791,1591 @@ export default function DashboardPage() {
           {/* Profile Section */}
           <div className="relative">
             <button
-              onClick={() => router.push('/profile')}
+              onClick={() => router.push("/profile")}
               className="flex items-center gap-2.5 bg-white/10 hover:bg-white/20 border border-white/15 rounded-full p-1 pr-4 cursor-pointer select-none transition-all shadow-sm"
             >
               <div className="w-7 h-7 rounded-full bg-amber-500 text-[#1b4e7e] font-black text-xs flex items-center justify-center">
                 {user.fullName.charAt(0).toUpperCase()}
               </div>
-              <span className="text-xs font-bold text-white tracking-wide">{user.fullName}</span>
+              <span className="text-xs font-bold text-white tracking-wide">
+                {user.fullName}
+              </span>
             </button>
           </div>
-
         </div>
       </nav>
- 
+
       {/* 2. Sub-Navigation Tabs Bar */}
       <div className="w-full bg-white border-b border-slate-200/80 shadow-sm">
         <div className="max-w-7xl mx-auto px-4">
-          <div className="flex gap-8 items-center h-12 text-sm font-semibold">
-            <button className="text-[#1b4e7e] border-b-2 border-[#1b4e7e] h-full px-1 flex items-center cursor-pointer select-none">
-              Dashboard
-            </button>
-            <button className="text-slate-500 hover:text-[#1b4e7e] border-b-2 border-transparent transition-colors h-full px-1 flex items-center cursor-pointer select-none">
-              Find Tenders
-            </button>
-            <button className="text-slate-500 hover:text-[#1b4e7e] border-b-2 border-transparent transition-colors h-full px-1 flex items-center cursor-pointer select-none">
-              Live Auctions
-            </button>
-            <button className="text-slate-500 hover:text-[#1b4e7e] border-b-2 border-transparent transition-colors h-full px-1 flex items-center cursor-pointer select-none">
-              My Bids
-            </button>
-            <button className="text-slate-500 hover:text-[#1b4e7e] border-b-2 border-transparent transition-colors h-full px-1 flex items-center cursor-pointer select-none">
-              Document Vault
-            </button>
+          <div className="flex gap-8 items-center h-12 text-sm font-semibold overflow-x-auto">
+            {/* ================= TENDER NAVIGATION ================= */}
+            {activeTab === "tender" ? (
+              <>
+                <button
+                  onClick={() => setActiveSubNav("dashboard")}
+                  className={`h-full px-1 flex items-center whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
+                    activeSubNav === "dashboard"
+                      ? "text-[#1b4e7e] border-[#1b4e7e]"
+                      : "text-slate-500 border-transparent hover:text-[#1b4e7e]"
+                  }`}
+                >
+                  Dashboard
+                </button>
+
+                <button
+                  onClick={() => setActiveSubNav("live")}
+                  className={`h-full px-1 flex items-center whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
+                    activeSubNav === "live"
+                      ? "text-[#1b4e7e] border-[#1b4e7e]"
+                      : "text-slate-500 border-transparent hover:text-[#1b4e7e]"
+                  }`}
+                >
+                  Live Tenders
+                </button>
+
+                <button
+                  onClick={() => setActiveSubNav("find")}
+                  className={`h-full px-1 flex items-center whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
+                    activeSubNav === "find"
+                      ? "text-[#1b4e7e] border-[#1b4e7e]"
+                      : "text-slate-500 border-transparent hover:text-[#1b4e7e]"
+                  }`}
+                >
+                  Find Tenders
+                </button>
+
+                <button
+                  onClick={() => setActiveSubNav("categories")}
+                  className={`h-full px-1 flex items-center whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
+                    activeSubNav === "categories"
+                      ? "text-[#1b4e7e] border-[#1b4e7e]"
+                      : "text-slate-500 border-transparent hover:text-[#1b4e7e]"
+                  }`}
+                >
+                  Categories
+                </button>
+
+                <button
+                  onClick={() => setActiveSubNav("applied")}
+                  className={`h-full px-1 flex items-center whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
+                    activeSubNav === "applied"
+                      ? "text-[#1b4e7e] border-[#1b4e7e]"
+                      : "text-slate-500 border-transparent hover:text-[#1b4e7e]"
+                  }`}
+                >
+                  Applied Tenders
+                </button>
+
+                <button
+                  onClick={() => setActiveSubNav("history")}
+                  className={`h-full px-1 flex items-center whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
+                    activeSubNav === "history"
+                      ? "text-[#1b4e7e] border-[#1b4e7e]"
+                      : "text-slate-500 border-transparent hover:text-[#1b4e7e]"
+                  }`}
+                >
+                  Past History
+                </button>
+
+                <button
+                  onClick={() => setActiveSubNav("upcoming")}
+                  className={`h-full px-1 flex items-center whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
+                    activeSubNav === "upcoming"
+                      ? "text-[#1b4e7e] border-[#1b4e7e]"
+                      : "text-slate-500 border-transparent hover:text-[#1b4e7e]"
+                  }`}
+                >
+                  Upcoming
+                </button>
+              </>
+            ) : (
+              /* ================= AUCTION NAVIGATION ================= */
+              <>
+                <button
+                  onClick={() => setAuctionSubNav("live")}
+                  className={`h-full px-1 flex items-center whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
+                    auctionSubNav === "live"
+                      ? "text-[#1b4e7e] border-[#1b4e7e]"
+                      : "text-slate-500 border-transparent hover:text-[#1b4e7e]"
+                  }`}
+                >
+                  Live Auctions
+                </button>
+
+                <button
+                  onClick={() => setAuctionSubNav("my-bids")}
+                  className={`h-full px-1 flex items-center whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
+                    auctionSubNav === "my-bids"
+                      ? "text-[#1b4e7e] border-[#1b4e7e]"
+                      : "text-slate-500 border-transparent hover:text-[#1b4e7e]"
+                  }`}
+                >
+                  My Bids & NFT Vault
+                </button>
+
+                <button
+                  onClick={() => setAuctionSubNav("categories")}
+                  className={`h-full px-1 flex items-center whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
+                    auctionSubNav === "categories"
+                      ? "text-[#1b4e7e] border-[#1b4e7e]"
+                      : "text-slate-500 border-transparent hover:text-[#1b4e7e]"
+                  }`}
+                >
+                  Categories
+                </button>
+
+                <button
+                  onClick={() => setAuctionSubNav("history")}
+                  className={`h-full px-1 flex items-center whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
+                    auctionSubNav === "history"
+                      ? "text-[#1b4e7e] border-[#1b4e7e]"
+                      : "text-slate-500 border-transparent hover:text-[#1b4e7e]"
+                  }`}
+                >
+                  Past History
+                </button>
+
+                <button
+                  onClick={() => setAuctionSubNav("ledger")}
+                  className={`h-full px-1 flex items-center whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
+                    auctionSubNav === "ledger"
+                      ? "text-[#1b4e7e] border-[#1b4e7e]"
+                      : "text-slate-500 border-transparent hover:text-[#1b4e7e]"
+                  }`}
+                >
+                  NFT Audit Ledger
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
- 
+
       {/* 3. Main content dashboard */}
+      {/* 3. Main Content */}
       <main className="flex-grow max-w-7xl mx-auto px-4 py-8 w-full space-y-6">
-        
-        {/* Welcome message */}
+        {/* ========================================================= */}
+        {/* WELCOME CARD - SAME DASHBOARD UI */}
+        {/* ========================================================= */}
+
         <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <h1 className="text-lg font-bold text-slate-800">
               Welcome back, {user.fullName}!
             </h1>
+
             <p className="text-xs text-slate-500 font-medium">
-              Registered Vendor/Bidder associated with <strong className="text-slate-700">{user.orgName}</strong>
+              Registered Vendor/Bidder associated with{" "}
+              <strong className="text-slate-700">{user.orgName}</strong>
             </p>
           </div>
+
           <div className="bg-primary-light border border-primary/10 text-primary text-xs font-bold px-3 py-1.5 rounded-lg self-start sm:self-auto uppercase tracking-wide select-none">
             Status: Active Vendor
           </div>
         </div>
 
-        {/* Dynamic Panel Header & Search */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <h2 className="text-base font-extrabold text-slate-800 uppercase tracking-widest border-l-4 border-primary pl-3.5">
-              {activeTab === 'tender' ? 'Active Tenders' : 'Live Reverse Auction Arena'}
-            </h2>
-            {filterSubmittedOnly && activeTab === 'tender' && (
-              <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded">
-                Filtered: Active Bids
-              </span>
-            )}
-          </div>
-          <div className="relative w-full sm:w-64">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-slate-800"
-              placeholder={`Search ${activeTab} ID or Title...`}
-            />
-            <svg className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.637 10.637z"/>
-            </svg>
-          </div>
-        </div>
+        {/* ========================================================= */}
+        {/* ===================== DASHBOARD ========================= */}
+        {/* ========================================================= */}
 
-        {/* Dynamic Panels */}
-        {activeTab === 'tender' ? (
-          /* Tender Panel with sidebar tools integration */
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            {/* Left 2 columns: Tender Cards Grid */}
-            <div className="lg:col-span-2 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {filteredTenders.length > 0 ? (
-                  filteredTenders.map((item) => (
-                    <div key={item.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col justify-between shadow-sm">
-                      
-                      {/* Top half: White background */}
-                      <div className="p-5 space-y-4 text-left">
-                        {/* Title and Match Badge */}
-                        <div className="flex justify-between items-start gap-4">
-                          <h3 className="font-bold text-slate-800 text-sm md:text-[15px] leading-snug">
-                            {item.title}
-                          </h3>
-                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap ${item.match === 'High Match' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100/50' : 'bg-amber-50 text-amber-700 border border-amber-100/50'}`}>
-                            {item.match}
+        {activeSubNav === "dashboard" && (
+          <>
+            {/* Dashboard Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-extrabold text-slate-800 uppercase tracking-widest border-l-4 border-primary pl-3.5">
+                  {activeTab === "tender"
+                    ? "Active Tenders"
+                    : "Live Reverse Auction Arena"}
+                </h2>
+
+                {filterSubmittedOnly && activeTab === "tender" && (
+                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded">
+                    Filtered: Active Bids
+                  </span>
+                )}
+              </div>
+
+              {/* Search */}
+              <div className="relative w-full sm:w-64">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-slate-800"
+                  placeholder={`Search ${activeTab} ID or Title...`}
+                />
+
+                <svg
+                  className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.637 10.637z"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            {/* ===================================================== */}
+            {/* EXISTING TENDER / AUCTION DASHBOARD */}
+            {/* ===================================================== */}
+
+            {activeTab === "tender" ? (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* LEFT - TENDER CARDS */}
+                <div className="lg:col-span-2 space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {filteredTenders.length > 0 ? (
+                      filteredTenders.map((item) => (
+                        <div
+                          key={item.id}
+                          className="bg-white rounded-xl border border-slate-200 overflow-hidden flex flex-col justify-between shadow-sm hover:shadow-md transition-shadow"
+                        >
+                          {/* Card Top */}
+                          <div className="p-5 space-y-4 text-left">
+                            <div className="flex justify-between items-start gap-4">
+                              <h3 className="font-bold text-slate-800 text-sm md:text-[15px] leading-snug">
+                                {item.title}
+                              </h3>
+
+                              <span
+                                className={`text-[10px] font-bold px-2 py-0.5 rounded whitespace-nowrap ${
+                                  item.match === "High Match"
+                                    ? "bg-emerald-50 text-emerald-700 border border-emerald-100/50"
+                                    : "bg-amber-50 text-amber-700 border border-amber-100/50"
+                                }`}
+                              >
+                                {item.match}
+                              </span>
+                            </div>
+
+                            {/* Metadata */}
+                            <div className="space-y-2 text-xs md:text-sm">
+                              <p className="text-slate-700">
+                                <span className="text-slate-400 font-medium">
+                                  Tender ID:
+                                </span>{" "}
+                                <span className="font-bold text-slate-800">
+                                  {item.id}
+                                </span>
+                              </p>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                <p className="text-slate-700">
+                                  <span className="text-slate-400 font-medium">
+                                    Client:
+                                  </span>{" "}
+                                  <span className="font-bold text-slate-800">
+                                    {item.dept}
+                                  </span>
+                                </p>
+
+                                <p className="text-slate-700">
+                                  <span className="text-slate-400 font-medium">
+                                    Location:
+                                  </span>{" "}
+                                  <span className="font-bold text-slate-800">
+                                    {item.location}
+                                  </span>
+                                </p>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                <p className="text-slate-700">
+                                  <span className="text-slate-400 font-medium">
+                                    Est. Value:
+                                  </span>{" "}
+                                  <span className="font-bold text-slate-800">
+                                    {item.value}
+                                  </span>
+                                </p>
+
+                                <p className="text-slate-700">
+                                  <span className="text-slate-400 font-medium">
+                                    Bid Closes in:
+                                  </span>{" "}
+                                  <span className="font-bold text-slate-800">
+                                    {item.deadline}
+                                  </span>
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Card Bottom */}
+                          <div className="bg-[#f0f6fc] border-t border-slate-100 p-4 grid grid-cols-2 gap-4 items-center">
+                            <button
+                              onClick={() => setSelectedTender(item)}
+                              className="w-full bg-white hover:bg-slate-50 text-primary border border-primary/20 hover:border-primary font-bold py-2.5 rounded-lg cursor-pointer transition-colors text-center text-xs shadow-sm h-11"
+                            >
+                              View Details
+                            </button>
+
+                            {item.status === "active" ? (
+                              <button
+                                onClick={() => handleQuickApply(item)}
+                                className="w-full bg-[#1b4e7e] hover:bg-[#163f68] text-white rounded-lg cursor-pointer transition-colors flex flex-col items-center justify-center py-1.5 px-2 shadow-md h-11"
+                              >
+                                <span className="font-bold text-[11px]">
+                                  Quick Apply (Vault)
+                                </span>
+
+                                <span className="text-[8px] opacity-80 leading-none mt-0.5 whitespace-nowrap">
+                                  One-click action pre-uploaded documents
+                                </span>
+                              </button>
+                            ) : (
+                              <button
+                                disabled
+                                className="w-full bg-slate-200 text-slate-400 border border-slate-300 rounded-lg cursor-not-allowed flex flex-col items-center justify-center py-1.5 px-2 h-11"
+                              >
+                                <span className="font-bold text-[11px]">
+                                  Submitted
+                                </span>
+
+                                <span className="text-[8px] opacity-80 leading-none mt-0.5">
+                                  {item.myBid?.includes("Vault")
+                                    ? "Vault Record Synced"
+                                    : "Bid Submitted"}
+                                </span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="col-span-2 bg-white p-8 text-center text-slate-400 italic rounded-xl border border-slate-200">
+                        No active tenders found matching search query.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* RIGHT SIDEBAR */}
+                <div className="space-y-6 text-left">
+                  {/* Management Tools */}
+                  <div className="bg-[#133c62] text-white rounded-xl shadow-md overflow-hidden p-6 border border-[#1b4e7e]">
+                    <h3 className="text-sm font-bold tracking-wider uppercase opacity-90 border-b border-white/10 pb-3 mb-4">
+                      Tender Management Tools
+                    </h3>
+
+                    <div className="space-y-4">
+                      <button
+                        onClick={() =>
+                          setFilterSubmittedOnly(!filterSubmittedOnly)
+                        }
+                        className="w-full flex items-center justify-between py-2 text-left group hover:opacity-80 transition-all cursor-pointer"
+                      >
+                        <div className="space-y-0.5">
+                          <span className="text-xs font-bold">
+                            My Active Bids ({activeBidsCount})
+                          </span>
+
+                          <p className="text-[10px] text-white/50">
+                            {filterSubmittedOnly
+                              ? "Showing submitted bids (Click to clear)"
+                              : "Filter by applied bids"}
+                          </p>
+                        </div>
+
+                        <span className="text-white/40 text-lg">→</span>
+                      </button>
+
+                      <div className="w-full h-px bg-white/10" />
+
+                      <button
+                        onClick={() => setVaultOpen(true)}
+                        className="w-full flex items-center justify-between py-2 text-left group hover:opacity-80 transition-all cursor-pointer"
+                      >
+                        <div className="space-y-0.5">
+                          <span className="text-xs font-bold">
+                            Document Vault Access
+                          </span>
+
+                          <span className="text-[10px] text-white/50 block">
+                            (All Active)
                           </span>
                         </div>
 
-                        {/* Metadata Details */}
-                        <div className="space-y-2 text-xs md:text-sm">
-                          <p className="text-slate-700">
-                            <span className="text-slate-400 font-medium">Tender ID:</span> <span className="font-bold text-slate-800">{item.id}</span>
-                          </p>
-                          <div className="grid grid-cols-2 gap-4">
-                            <p className="text-slate-700">
-                              <span className="text-slate-400 font-medium">Client:</span> <span className="font-bold text-slate-800">{item.dept}</span>
-                            </p>
-                            <p className="text-slate-700">
-                              <span className="text-slate-400 font-medium">Location:</span> <span className="font-bold text-slate-800">{item.location}</span>
+                        <span className="text-white/40 text-lg">→</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Recommended */}
+                  <div className="bg-[#133c62] text-white rounded-xl shadow-md overflow-hidden p-6 border border-[#1b4e7e]">
+                    <h3 className="text-sm font-bold tracking-wider uppercase opacity-90 mb-4">
+                      Recommended Tenders
+                    </h3>
+
+                    <div className="bg-white rounded-lg p-4 text-slate-800 flex items-center justify-between gap-4">
+                      <div className="space-y-1">
+                        <span className="text-[11px] font-extrabold text-[#133c62] block">
+                          Recommended Tenders
+                        </span>
+
+                        <span className="text-[10px] text-slate-600 font-semibold block">
+                          OSD/7734 - Office Stationery Supply
+                        </span>
+                      </div>
+
+                      <div className="w-10 h-10 bg-blue-50 border border-blue-100 rounded-lg flex items-center justify-center shrink-0">
+                        <span className="text-[#1b4e7e] font-bold">✓</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* ===================================================== */
+              /* AUCTION */
+              /* ===================================================== */
+              <>
+                {auctionSubNav === "live" && (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="lg:col-span-2 space-y-6">
+                      {arenaAuctionMatch ? (
+                        <div className="bg-[#133c62] text-white rounded-xl shadow-md overflow-hidden p-6 border border-[#1b4e7e]">
+                          <div className="flex justify-between items-start gap-4">
+                            <h3 className="font-extrabold text-sm md:text-base">
+                              {arenaAuctionMatch.id} - {arenaAuctionMatch.title}
+                            </h3>
+
+                            <div className="flex gap-1">
+                              {["03", "04", "02", "05"].map((num, idx) => (
+                                <span
+                                  key={idx}
+                                  className="bg-slate-900/60 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded"
+                                >
+                                  {num}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4 mt-4 mb-5">
+                            <div>
+                              <span className="text-[10px] text-white/50 block uppercase">
+                                Current Lowest Bid
+                              </span>
+
+                              <span className="text-xl font-black">
+                                ₹ {arenaAuctionMatch.lowestBid.toLocaleString()}
+                              </span>
+                            </div>
+
+                            <div className="text-right">
+                              <span className="text-[10px] text-white/50 block uppercase">
+                                Time Left
+                              </span>
+
+                              <span className="text-base font-bold font-mono">
+                                {formatTime(timeLeftSeconds)}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="w-full h-20 mb-5">
+                            <svg
+                              className="w-full h-full"
+                              viewBox="0 0 340 100"
+                              preserveAspectRatio="none"
+                            >
+                              <path
+                                d="M10,80 Q30,65 50,50 T90,90 T130,60 T170,80 T210,40 T250,85 T290,50 T330,60"
+                                fill="none"
+                                stroke="#f0803c"
+                                strokeWidth="2.5"
+                              />
+                            </svg>
+                          </div>
+
+                          <button
+                            onClick={() => setReverseArenaBidOpen(true)}
+                            className="w-full py-3 bg-[#e07a5f] hover:bg-[#cf6b50] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                          >
+                            Place Lower Bid Now
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400">
+                          No auction found.
+                        </div>
+                      )}
+
+                      {/* Small Auctions */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {subAuctionsMatches.map((item) => (
+                          <div
+                            key={item.id}
+                            className="bg-[#133c62] text-white rounded-xl shadow-md p-5 border border-[#1b4e7e]"
+                          >
+                            <div className="flex justify-between gap-3">
+                              <h4 className="font-bold text-sm">{item.title}</h4>
+
+                              <span className="bg-amber-500/20 text-amber-300 text-[8px] font-bold px-2 py-0.5 rounded h-fit">
+                                ACTIVE
+                              </span>
+                            </div>
+
+                            <div className="mt-5">
+                              <p className="text-[10px] text-white/50 uppercase">
+                                Current Lowest Bid
+                              </p>
+
+                              <p className="text-lg font-extrabold mt-1">
+                                ₹{item.lowestBid.toLocaleString()}
+                              </p>
+                            </div>
+
+                            <div className="flex justify-between items-center mt-5 pt-3 border-t border-white/10">
+                              <span className="text-[10px] font-mono">
+                                {item.timeLeft}
+                              </span>
+
+                              <button
+                                onClick={() =>
+                                  alert(
+                                    `Placing bid for ${item.title} (${item.id})`,
+                                  )
+                                }
+                                className="bg-white/10 hover:bg-white/20 border border-white/20 py-1.5 px-4 rounded text-[9px] font-bold"
+                              >
+                                Bid Now
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Auction Activity */}
+                    <div className="space-y-6">
+                      <div className="bg-[#133c62] text-white rounded-xl shadow-md p-6 border border-[#1b4e7e] space-y-5">
+                        <h3 className="text-sm font-bold uppercase border-b border-white/10 pb-3">
+                          My Auction Activity
+                        </h3>
+
+                        <div className="flex justify-between text-xs font-bold">
+                          <span>Live Bids (2)</span>
+
+                          <span>→</span>
+                        </div>
+
+                        <div className="w-full h-px bg-white/10" />
+
+                        <div>
+                          <h4 className="text-xs font-bold mb-3">
+                            Auction Watchlist
+                          </h4>
+
+                          <div className="flex justify-between text-[10px] font-bold">
+                            <span className="opacity-60">BID</span>
+
+                            <span className="text-emerald-400">+2.78%</span>
+                          </div>
+
+                          <div className="relative w-full h-1.5 mt-3 rounded-full overflow-hidden flex">
+                            <div className="w-1/2 bg-rose-500" />
+
+                            <div className="w-1/2 bg-emerald-500" />
+
+                            <span className="absolute left-[68%] top-1/2 -translate-y-1/2 w-3 h-3 bg-yellow-300 border-2 border-[#133c62] rounded-full" />
+                          </div>
+                        </div>
+
+                        <div className="w-full h-px bg-white/10" />
+
+                        <div>
+                          <h4 className="text-xs font-bold mb-3">
+                            Market Sentiment
+                          </h4>
+
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-emerald-400">Capital</span>
+
+                            <span className="text-emerald-400">▲ 6.89%</span>
+                          </div>
+                        </div>
+
+                        <div className="w-full h-px bg-white/10" />
+
+                        <div className="flex items-center gap-2 text-[9px] text-white/40">
+                          <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping" />
+                          Updating...
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* MY BIDS & NFT VAULT PANEL */}
+                {auctionSubNav === "my-bids" && (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 text-slate-800">
+                    <div className="lg:col-span-2 space-y-6">
+                      <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm text-left">
+                        <h2 className="text-lg font-bold text-slate-800">
+                          NFT Bid Vault
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Secure tokenized bid records locked cryptographically in your hardware/browser security module.
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4 text-left">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-mono text-[#1b4e7e] font-bold">
+                              CERT-7734-98
+                            </span>
+                            <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[9px] font-extrabold border border-emerald-100">
+                              SECURED
+                            </span>
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-bold text-slate-800">
+                              Office Stationery Supply Certificate
+                            </h3>
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                              Associated with Bid: OSD/7734
                             </p>
                           </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <p className="text-slate-700">
-                              <span className="text-slate-400 font-medium">Est. Value:</span> <span className="font-bold text-slate-800">{item.value}</span>
+                          <div className="bg-slate-50 rounded-lg p-3 space-y-2 text-[11px]">
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Token Standard:</span>
+                              <span className="font-semibold text-slate-700">ERC-1155</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Smart Contract:</span>
+                              <span className="font-mono text-[#1b4e7e] truncate max-w-[120px]">
+                                0x3a4fbc8c1992de0018a1bc
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Hash Signature:</span>
+                              <span className="font-mono text-slate-700 truncate max-w-[120px]">
+                                8f9b7c2d1e0a4fbc8c1992d
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setAuctionSubNav("ledger")}
+                            className="w-full py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-600 font-bold text-[11px] transition-colors cursor-pointer text-center"
+                          >
+                            Inspect Audit Trail
+                          </button>
+                        </div>
+
+                        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4 text-left">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-mono text-[#1b4e7e] font-bold">
+                              CERT-9012-14
+                            </span>
+                            <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[9px] font-extrabold border border-emerald-100">
+                              SECURED
+                            </span>
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-bold text-slate-800">
+                              Heavy Machinery Tender Certificate
+                            </h3>
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                              Associated with Bid: RA-9012
                             </p>
-                            <p className="text-slate-700">
-                              <span className="text-slate-400 font-medium">Bid Closes in:</span> <span className="font-bold text-slate-800">{item.deadline}</span>
-                            </p>
+                          </div>
+                          <div className="bg-slate-50 rounded-lg p-3 space-y-2 text-[11px]">
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Token Standard:</span>
+                              <span className="font-semibold text-slate-700">ERC-1155</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Smart Contract:</span>
+                              <span className="font-mono text-[#1b4e7e] truncate max-w-[120px]">
+                                0x91b2fe48ba9910a3ee77
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-slate-400">Hash Signature:</span>
+                              <span className="font-mono text-slate-700 truncate max-w-[120px]">
+                                2a9910a3ed9c4483bd53e69
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => setAuctionSubNav("ledger")}
+                            className="w-full py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-600 font-bold text-[11px] transition-colors cursor-pointer text-center"
+                          >
+                            Inspect Audit Trail
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <div className="bg-[#133c62] text-white rounded-xl shadow-md p-6 border border-[#1b4e7e] space-y-4">
+                        <h3 className="text-sm font-bold uppercase border-b border-white/10 pb-3">
+                          My Placed Bids
+                        </h3>
+                        <div className="space-y-3">
+                          <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
+                            <span className="text-[9px] font-bold text-amber-400 block uppercase">
+                              OSD/7734 - Stationery
+                            </span>
+                            <span className="text-sm font-black block mt-0.5">
+                              ₹ {currentLowestBid.toLocaleString()}
+                            </span>
+                            <span className="text-[9px] text-white/50 block mt-1">
+                              Status: Leading Bid (Lowest)
+                            </span>
+                          </div>
+
+                          <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
+                            <span className="text-[9px] font-bold text-amber-400 block uppercase">
+                              RA-9012 - Heavy Machinery
+                            </span>
+                            <span className="text-sm font-black block mt-0.5">
+                              ₹ 90,012
+                            </span>
+                            <span className="text-[9px] text-white/50 block mt-1">
+                              Status: Position Standard
+                            </span>
                           </div>
                         </div>
                       </div>
-
-                      {/* Bottom half: light blue shading */}
-                      <div className="bg-[#f0f6fc] border-t border-slate-100 p-4 grid grid-cols-2 gap-4 items-center">
-                        <button
-                          onClick={() => setSelectedTender(item)}
-                          className="w-full bg-white hover:bg-slate-50 text-primary border border-primary/20 hover:border-primary font-bold py-2.5 rounded-lg cursor-pointer transition-colors text-center text-xs shadow-sm h-11"
-                        >
-                          View Details
-                        </button>
-                        
-                        {item.status === 'active' ? (
-                          <button
-                            onClick={() => handleQuickApply(item)}
-                            className="w-full bg-[#1b4e7e] hover:bg-[#163f68] text-white rounded-lg cursor-pointer transition-colors flex flex-col items-center justify-center py-1.5 px-2 shadow-md h-11"
-                          >
-                            <span className="font-bold text-[11px]">Quick Apply (Vault)</span>
-                            <span className="text-[8px] opacity-80 leading-none mt-0.5 whitespace-nowrap">One-click action pre-uploaded documents</span>
-                          </button>
-                        ) : (
-                          <button
-                            disabled
-                            className="w-full bg-slate-200 text-slate-400 border border-slate-300 rounded-lg cursor-not-allowed flex flex-col items-center justify-center py-1.5 px-2 h-11"
-                          >
-                            <span className="font-bold text-[11px]">Submitted</span>
-                            <span className="text-[8px] opacity-80 leading-none mt-0.5">
-                              {item.myBid?.includes('Vault') ? 'Vault Record Synced' : 'Bid Submitted'}
-                            </span>
-                          </button>
-                        )}
-                      </div>
-
                     </div>
-                  ))
-                ) : (
-                  <div className="col-span-2 bg-white p-8 text-center text-slate-400 italic rounded-xl border border-slate-200">
-                    No active tenders found matching search query.
                   </div>
                 )}
-              </div>
-            </div>
 
-            {/* Right 1 column: Sidebar containing the toolcards (Reordered: Auction -> Tools -> Recommended) */}
-            <div className="space-y-6 text-left">
-              
-
-
-              {/* 2. Tender Management Tools (Rendered Second) */}
-              <div className="bg-[#133c62] text-white rounded-xl shadow-md overflow-hidden p-6 border border-[#1b4e7e]">
-                <h3 className="text-sm font-bold tracking-wider uppercase opacity-90 border-b border-white/10 pb-3 mb-4">
-                  Tender Management Tools
-                </h3>
-                
-                <div className="space-y-4">
-                  <button
-                    onClick={() => setFilterSubmittedOnly(!filterSubmittedOnly)}
-                    className="w-full flex items-center justify-between py-2 text-left group hover:opacity-80 transition-all cursor-pointer"
-                  >
-                    <div className="space-y-0.5">
-                      <span className="text-xs font-bold">My Active Bids ({activeBidsCount})</span>
-                      <p className="text-[10px] text-white/50">
-                        {filterSubmittedOnly ? 'Showing submitted bids (Click to clear)' : 'Filter by applied bids'}
+                {/* CATEGORIES PANEL */}
+                {auctionSubNav === "categories" && (
+                  <div className="space-y-6 text-left">
+                    <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+                      <h2 className="text-lg font-bold text-slate-800">
+                        Auction Categories
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Filter reverse auctions by procurement sectors and industrial fields.
                       </p>
                     </div>
-                    <svg className="w-4 h-4 text-white/40 group-hover:text-white transition-colors" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/>
-                    </svg>
-                  </button>
 
-                  <div className="w-full h-px bg-white/10" />
-
-                  <button
-                    onClick={() => setVaultOpen(true)}
-                    className="w-full flex items-center justify-between py-2 text-left group hover:opacity-80 transition-all cursor-pointer"
-                  >
-                    <div className="space-y-0.5">
-                      <span className="text-xs font-bold">Document Vault Access</span>
-                      <span className="text-[10px] text-white/50 block">(All Active)</span>
-                    </div>
-                    <svg className="w-4 h-4 text-white/40 group-hover:text-white transition-colors" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-
-              {/* 3. Recommended Tenders (Rendered Third) */}
-              <div className="bg-[#133c62] text-white rounded-xl shadow-md overflow-hidden p-6 border border-[#1b4e7e]">
-                <h3 className="text-sm font-bold tracking-wider uppercase opacity-90 mb-4 text-left">
-                  Recommended Tenders
-                </h3>
-                
-                {/* White Inner Card */}
-                <div className="bg-white rounded-lg p-4 text-slate-800 flex items-center justify-between gap-4 border border-white/10 shadow-inner">
-                  <div className="text-left space-y-1">
-                    <span className="text-[11px] font-extrabold text-[#133c62] block leading-tight">
-                      Recommended Tenders
-                    </span>
-                    <span className="text-[10px] text-slate-600 font-semibold block leading-relaxed">
-                      OSD/7734 - Office Stationery Supply
-                    </span>
-                  </div>
-                  
-                  {/* Verified profile avatar box */}
-                  <div className="w-10 h-10 bg-blue-50 border border-blue-100 rounded-lg flex items-center justify-center shrink-0 relative">
-                    <svg className="w-6 h-6 text-[#1b4e7e]/70" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                    </svg>
-                    {/* Green check icon overlay */}
-                    <span className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border border-white rounded-full flex items-center justify-center shadow-sm select-none">
-                      <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5"/>
-                      </svg>
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-          </div>
-        ) : (
-          /* ----------------- AUCTION TAB ----------------- */
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            
-            {/* Left 2 columns: Active Arena large card and lower grid cards */}
-            <div className="lg:col-span-2 space-y-6 text-left">
-              
-              {/* 1. Large Header Card - OSD/7734 Arena */}
-              {arenaAuctionMatch ? (
-                <div className="bg-[#133c62] text-white rounded-xl shadow-md overflow-hidden p-6 border border-[#1b4e7e] relative">
-                  
-                  {/* Header Row */}
-                  <div className="flex justify-between items-start gap-4">
-                    <h3 className="font-extrabold text-sm md:text-base tracking-wide">
-                      {arenaAuctionMatch.id} - {arenaAuctionMatch.title}
-                    </h3>
-                    {/* Digital ticking counters */}
-                    <div className="flex gap-1 select-none">
-                      {['03', '04', '02', '05'].map((num, idx) => (
-                        <span key={idx} className="bg-slate-900/60 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border border-white/5">
-                          {num}
-                        </span>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {[
+                        {
+                          name: "Construction & Infrastructure",
+                          desc: "Road expansion, bridge building, solar installations",
+                          count: 3,
+                          icon: (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                          )
+                        },
+                        {
+                          name: "Medical Equipment & Biotech",
+                          desc: "Biomedical monitors, diagnostic setups, oxygen lines",
+                          count: 2,
+                          icon: (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                          )
+                        },
+                        {
+                          name: "Enterprise IT & Computing",
+                          desc: "Fibre lines, server racks, cloud migration suites",
+                          count: 4,
+                          icon: (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          )
+                        },
+                        {
+                          name: "Consumables & Office Supplies",
+                          desc: "Stationery packages, logistics, furniture updates",
+                          count: 1,
+                          icon: (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                          )
+                        },
+                        {
+                          name: "Heavy Machinery & Fleet",
+                          desc: "Road rollers, excavators, high-capacity loaders",
+                          count: 2,
+                          icon: (
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          )
+                        }
+                      ].map((cat, idx) => (
+                        <div key={idx} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                          <div className="space-y-4">
+                            <div className="w-10 h-10 bg-slate-50 border border-slate-100 rounded-lg flex items-center justify-center text-[#1b4e7e]">
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                {cat.icon}
+                              </svg>
+                            </div>
+                            <div>
+                              <h3 className="text-sm font-bold text-slate-800">{cat.name}</h3>
+                              <p className="text-xs text-slate-400 mt-1 leading-relaxed">{cat.desc}</p>
+                            </div>
+                          </div>
+                          <div className="mt-5 pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
+                            <span className="text-[#1b4e7e] font-bold">{cat.count} Auctions</span>
+                            <button
+                              onClick={() => {
+                                setAuctionSubNav("live");
+                                setSearchQuery(cat.name.split(" ")[0]);
+                              }}
+                              className="px-3 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded text-slate-600 font-bold text-[10px] cursor-pointer"
+                            >
+                              Explore
+                            </button>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   </div>
+                )}
 
-                  {/* Subtitle / Details row */}
-                  <div className="grid grid-cols-2 gap-4 mt-4 mb-4">
-                    <div>
-                      <span className="text-[10px] text-white/50 block uppercase tracking-wider font-semibold">Current Lowest Bid</span>
-                      <span className="text-lg md:text-xl font-black text-white">₹ {arenaAuctionMatch.lowestBid.toLocaleString()}</span>
+                {/* PAST HISTORY PANEL */}
+                {auctionSubNav === "history" && (
+                  <div className="space-y-6 text-left">
+                    <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm">
+                      <h2 className="text-lg font-bold text-slate-800">
+                        Past Concluded Auctions
+                      </h2>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Review bidding histories and contract savings records of completed auctions.
+                      </p>
                     </div>
-                    <div className="text-right">
-                      <span className="text-[10px] text-white/50 block uppercase tracking-wider font-semibold">Time Left</span>
-                      <span className="text-sm md:text-base font-bold text-white font-mono">{formatTime(timeLeftSeconds)} mins</span>
+
+                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs md:text-sm text-left text-slate-700">
+                          <thead className="bg-slate-50 text-[10px] text-slate-400 uppercase tracking-wider font-extrabold border-b border-slate-200">
+                            <tr>
+                              <th className="px-6 py-4">Auction ID</th>
+                              <th className="px-6 py-4">Title</th>
+                              <th className="px-6 py-4">Client</th>
+                              <th className="px-6 py-4">Starting Value</th>
+                              <th className="px-6 py-4">Concluded Lowest Bid</th>
+                              <th className="px-6 py-4">Savings</th>
+                              <th className="px-6 py-4">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {[
+                              {
+                                id: "NIC/0052",
+                                title: "Enterprise Cloud Suite",
+                                client: "Ministry of IT",
+                                start: "₹45,00,000",
+                                end: "₹38,20,000",
+                                savings: "15.1%",
+                                status: "Completed"
+                              },
+                              {
+                                id: "MCD/8821",
+                                title: "Waste Management Systems",
+                                client: "MCD Delhi",
+                                start: "₹25,00,000",
+                                end: "₹21,50,000",
+                                savings: "14.0%",
+                                status: "Completed"
+                              },
+                              {
+                                id: "NHAI/9010",
+                                title: "Toll Plaza Automations",
+                                client: "NHAI",
+                                start: "₹80,00,000",
+                                end: "₹74,30,000",
+                                savings: "7.1%",
+                                status: "Completed"
+                              }
+                            ].map((row, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50/50">
+                                <td className="px-6 py-4 font-mono font-bold text-slate-900">{row.id}</td>
+                                <td className="px-6 py-4 font-semibold text-slate-800">{row.title}</td>
+                                <td className="px-6 py-4 text-slate-500">{row.client}</td>
+                                <td className="px-6 py-4 font-mono text-slate-600">{row.start}</td>
+                                <td className="px-6 py-4 font-mono font-bold text-[#1b4e7e]">{row.end}</td>
+                                <td className="px-6 py-4 font-bold text-emerald-600">{row.savings}</td>
+                                <td className="px-6 py-4">
+                                  <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-bold">
+                                    {row.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
+                )}
 
-                  {/* Live wave SVG curve */}
-                  <div className="w-full h-24 mb-6 relative">
-                    <svg className="w-full h-full" viewBox="0 0 340 100" preserveAspectRatio="none">
-                      <defs>
-                        <linearGradient id="waveGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#f0803c" stopOpacity="0.25" />
-                          <stop offset="100%" stopColor="#f0803c" stopOpacity="0" />
-                        </linearGradient>
-                      </defs>
-                      <path
-                        d="M10,100 L10,80 Q30,65 50,50 T90,90 T130,60 T170,80 T210,40 T250,85 T290,50 T330,60 L330,100 Z"
-                        fill="url(#waveGradient)"
-                      />
-                      <path
-                        d="M10,80 Q30,65 50,50 T90,90 T130,60 T170,80 T210,40 T250,85 T290,50 T330,60"
-                        fill="none"
-                        stroke="#f0803c"
-                        strokeWidth="2.5"
-                      />
-                      <circle cx="50" cy="50" r="4.5" fill="#f0803c" stroke="#133c62" strokeWidth="1.5" />
-                      <circle cx="130" cy="60" r="4.5" fill="#f0803c" stroke="#133c62" strokeWidth="1.5" />
-                      <circle cx="210" cy="40" r="4.5" fill="#f0803c" stroke="#133c62" strokeWidth="1.5" />
-                      <circle cx="290" cy="50" r="4.5" fill="#f0803c" stroke="#133c62" strokeWidth="1.5" />
-                    </svg>
-                    <span className="absolute bottom-1 right-2 text-[9px] text-white/50 font-bold uppercase tracking-wider select-none">
-                      Bid trends Last 5 minutes
+                {/* NFT AUDIT LEDGER PANEL */}
+                {auctionSubNav === "ledger" && (
+                  <div className="space-y-6 text-left">
+                    <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                      <div>
+                        <h2 className="text-lg font-bold text-slate-800">
+                          NFT Cryptographic Audit Ledger
+                        </h2>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Immutable block chain validation records securing reverse auctions.
+                        </p>
+                      </div>
+                      <span className="px-3 py-1 bg-blue-50 border border-blue-100 rounded-lg text-[#1b4e7e] text-[10px] font-bold font-mono w-fit">
+                        Block Height: #20914820
+                      </span>
+                    </div>
+
+                    <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm space-y-6">
+                      <div className="relative border-l-2 border-slate-200 pl-6 space-y-8 ml-3">
+                        {[
+                          {
+                            event: "Bid Certificate Hash Signed",
+                            desc: "Cryptographic confirmation hash matching Stationery Bid (OSD/7734) committed to distributed state ledger.",
+                            tx: "0x7f48bce39a48586e797e433ab948586e",
+                            block: "#20914820",
+                            time: "10 mins ago",
+                            badge: "VALIDATED"
+                          },
+                          {
+                            event: "DSC Vault Token ERC-1155 Minted",
+                            desc: "Hardware certificate credentials tokenized and stored in the secure bidder wallet profile.",
+                            tx: "0x91b2fe48ba9910a3ee77433ab948586e",
+                            block: "#20914805",
+                            time: "12 mins ago",
+                            badge: "MINTER_CONFIRMED"
+                          },
+                          {
+                            event: "Reverse Auction Arena Initialized",
+                            desc: "Reverse pricing curve guidelines and starting value parameter vectors locked into decentralized VM consensus.",
+                            tx: "0xbc887f48bce39a48586e797e433ab948",
+                            block: "#20914750",
+                            time: "45 mins ago",
+                            badge: "VM_VERIFIED"
+                          },
+                          {
+                            event: "Tender Contract Genesis Sealed",
+                            desc: "Tender authorization cert and client public key handshake registered into Genesis block state root.",
+                            tx: "0xde512a9910a3ed9c4483bd53e692f846",
+                            block: "#20914700",
+                            time: "1 hour ago",
+                            badge: "GENESIS"
+                          }
+                        ].map((item, idx) => (
+                          <div key={idx} className="relative">
+                            <span className="absolute -left-[31px] top-1.5 w-3 h-3 bg-white border-2 border-[#1b4e7e] rounded-full" />
+                            
+                            <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                              <div className="space-y-1">
+                                <h3 className="text-xs font-bold text-slate-800">{item.event}</h3>
+                                <p className="text-[11px] text-slate-500 max-w-xl leading-relaxed">{item.desc}</p>
+                                <div className="flex flex-wrap gap-4 pt-2 text-[9px] text-slate-400 font-mono">
+                                  <span>Tx Hash: <span className="text-[#1b4e7e]">{item.tx}</span></span>
+                                  <span>Block: <span className="text-slate-600">{item.block}</span></span>
+                                </div>
+                              </div>
+                              <div className="md:text-right shrink-0 space-y-1.5">
+                                <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[9px] font-bold border border-emerald-100 block w-fit md:ml-auto">
+                                  {item.badge}
+                                </span>
+                                <span className="text-[10px] text-slate-400 block">{item.time}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
+
+        {/* ========================================================= */}
+        {/* ===================== LIVE TENDERS ====================== */}
+        {/* ========================================================= */}
+
+        {activeSubNav === "live" && (
+          <section className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-3">
+                  <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse" />
+
+                  <h2 className="text-xl font-bold text-slate-800">
+                    Live Tenders
+                  </h2>
+                </div>
+
+                <p className="text-sm text-slate-500 mt-1">
+                  Currently active tenders available for bidding
+                </p>
+              </div>
+
+              <span className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-100">
+                {liveTenderData.length} Live Tenders
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {liveTenderData.map((tender) => (
+                <div
+                  key={tender.id}
+                  className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-all"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <span className="text-[10px] font-bold text-[#1b4e7e]">
+                        {tender.id}
+                      </span>
+
+                      <h3 className="text-sm font-bold text-slate-800 mt-1">
+                        {tender.title}
+                      </h3>
+
+                      <p className="text-xs text-slate-500 mt-1">
+                        {tender.department}
+                      </p>
+                    </div>
+
+                    <span className="px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold">
+                      LIVE
                     </span>
                   </div>
 
-                  {/* Orange main bid trigger */}
+                  <div className="grid grid-cols-2 gap-3 mt-5">
+                    <div className="bg-slate-50 rounded-lg p-3">
+                      <p className="text-[10px] text-slate-400">Category</p>
+
+                      <p className="text-xs font-bold text-slate-700 mt-1">
+                        {tender.category}
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-lg p-3">
+                      <p className="text-[10px] text-slate-400">Location</p>
+
+                      <p className="text-xs font-bold text-slate-700 mt-1">
+                        {tender.location}
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-lg p-3">
+                      <p className="text-[10px] text-slate-400">Tender Value</p>
+
+                      <p className="text-xs font-bold text-slate-700 mt-1">
+                        {tender.value}
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-lg p-3">
+                      <p className="text-[10px] text-slate-400">Deadline</p>
+
+                      <p className="text-xs font-bold text-red-600 mt-1">
+                        {tender.deadline}
+                      </p>
+                    </div>
+                  </div>
+
                   <button
-                    onClick={() => setReverseArenaBidOpen(true)}
-                    className="w-full py-3 bg-[#e07a5f] hover:bg-[#cf6b50] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer text-center shadow-md select-none"
+                    onClick={() =>
+                      setSelectedTender({
+                        id: tender.id,
+                        title: tender.title,
+                        dept: tender.department,
+                        location: tender.location,
+                        value: tender.value,
+                        deadline: tender.deadline,
+                        match: tender.match as "High Match" | "Medium Match",
+                        status: "active",
+                      })
+                    }
+                    className="w-full mt-5 bg-[#1b4e7e] hover:bg-[#163f65] text-white py-2.5 rounded-lg text-xs font-bold transition-colors"
                   >
-                    Place Lower Bid Now
+                    View & Apply
                   </button>
-
                 </div>
-              ) : (
-                searchQuery && (
-                  <div className="bg-[#133c62]/40 text-white/60 rounded-xl p-6 text-center italic border border-[#1b4e7e]/50 text-xs">
-                    Main Stationery Arena Auction hidden by search filter.
-                  </div>
-                )
-              )}
-
-              {/* 2. Subgrid of Smaller Active Auctions */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {subAuctionsMatches.length > 0 ? (
-                  subAuctionsMatches.map((item) => (
-                    <div key={item.id} className="bg-[#133c62] text-white rounded-xl shadow-md overflow-hidden border border-[#1b4e7e] flex flex-col justify-between p-5 space-y-4">
-                      <div className="flex justify-between items-start gap-4">
-                        <h4 className="font-bold text-xs md:text-sm">{item.title} ({item.id})</h4>
-                        <span className="bg-amber-500/20 text-amber-300 text-[8px] font-bold px-2 py-0.5 rounded border border-amber-500/30 uppercase">
-                          Active Auctions
-                        </span>
-                      </div>
-                      <div className="space-y-2">
-                        <p className="text-[10px] text-white/50 uppercase font-semibold">Current Lowest Bid</p>
-                        <p className="text-sm font-extrabold">Current Lowest: ₹{item.lowestBid.toLocaleString()}</p>
-                      </div>
-                      <div className="flex justify-between items-center pt-2 border-t border-white/10 text-[10px]">
-                        <div className="flex gap-1 bg-slate-900/40 p-1 rounded select-none">
-                          <span className="font-mono">{item.timeLeft}</span>
-                        </div>
-                        <button
-                          onClick={() => alert(`Placing bid for ${item.title} (${item.id})`)}
-                          className="bg-white/10 hover:bg-white/20 border border-white/20 py-1 px-3 rounded text-[9px] font-bold transition-all cursor-pointer"
-                        >
-                          Bid Now
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  searchQuery && subAuctionsMatches.length === 0 && (
-                    <div className="col-span-2 bg-[#133c62]/40 text-white/60 rounded-xl p-6 text-center italic border border-[#1b4e7e]/50 text-xs">
-                      No matching secondary active auctions.
-                    </div>
-                  )
-                )}
-              </div>
-
-              {/* General Empty State */}
-              {filteredAuctions.length === 0 && (
-                <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 italic text-xs">
-                  No active auctions found matching search query "{searchQuery}".
-                </div>
-              )}
-
+              ))}
             </div>
-
-            {/* Right 1 column: Sidebar containing "My Auction Activity" */}
-            <div className="space-y-6 text-left">
-              
-              {/* Card: My Auction Activity */}
-              <div className="bg-[#133c62] text-white rounded-xl shadow-md overflow-hidden p-6 border border-[#1b4e7e] space-y-5">
-                
-                {/* 1. Header & Live Bids Row */}
-                <div>
-                  <h3 className="text-sm font-bold tracking-wider uppercase opacity-90 border-b border-white/10 pb-3 mb-4">
-                    My Auction Activity
-                  </h3>
-                  <div className="flex items-center justify-between hover:opacity-85 cursor-pointer py-1 select-none">
-                    <span className="text-xs font-bold">Live Bids (2)</span>
-                    <svg className="w-4 h-4 text-white/40" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/>
-                    </svg>
-                  </div>
-                </div>
-
-                <div className="w-full h-px bg-white/10" />
-
-                {/* 2. Auction Watchlist Slider */}
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <h4 className="text-xs font-bold">Auction Watchlist</h4>
-                    <div className="flex gap-2 text-[9px] font-bold text-white/50 select-none">
-                      <span className="text-white border-b border-white pb-0.5">Live Bids (2)</span>
-                      <span>Watchlist</span>
-                    </div>
-                  </div>
-                  
-                  {/* Data Row */}
-                  <div className="flex justify-between items-center text-[10px] font-bold tracking-wide">
-                    <span className="opacity-60">BID</span>
-                    <div className="flex gap-3">
-                      <span>1.94</span>
-                      <span>29.06</span>
-                      <span className="text-emerald-400 font-extrabold">+2.78%</span>
-                    </div>
-                  </div>
-
-                  {/* Bicolor Slider bar red/green */}
-                  <div className="space-y-1">
-                    <div className="relative w-full h-1.5 rounded-full overflow-hidden flex">
-                      <div className="w-1/2 h-full bg-rose-500" />
-                      <div className="w-1/2 h-full bg-emerald-500" />
-                      {/* Indicator node dot overlay */}
-                      <span className="absolute top-1/2 -translate-y-1/2 left-[68%] w-3 h-3 bg-yellow-300 border-2 border-[#133c62] rounded-full shadow" />
-                    </div>
-                    <div className="flex justify-between text-[9px] text-white/40 font-bold">
-                      <span>Low</span>
-                      <span>1</span>
-                      <span>High</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="w-full h-px bg-white/10" />
-
-                {/* 3. Market Sentiment indicator */}
-                <div className="space-y-3">
-                  <h4 className="text-xs font-bold">Market Sentiment</h4>
-                  
-                  <div className="space-y-2 text-[10px] font-bold tracking-wide">
-                    <div className="flex justify-between items-center">
-                      <span className="text-emerald-400">Capital</span>
-                      <div className="flex gap-2 items-center">
-                        <span className="text-emerald-400">+0.20%</span>
-                        <span className="text-emerald-400 font-black">▲ 6.89%</span>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-white/70">Sentiment</span>
-                      <span className="text-emerald-400">+0.20%</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="w-full h-px bg-white/10" />
-
-                {/* 4. Bottom ticking status */}
-                <div className="flex items-center gap-2 text-[9px] font-bold text-white/40 select-none">
-                  <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping" />
-                  <span>Updating...</span>
-                </div>
-
-              </div>
-
-            </div>
-
-          </div>
+          </section>
         )}
 
+        {/* ========================================================= */}
+        {/* ===================== FIND TENDERS ====================== */}
+        {/* ========================================================= */}
+
+        {activeSubNav === "find" && (
+          <section className="space-y-6">
+            <div>
+              <h2 className="text-xl font-bold text-slate-800">Find Tenders</h2>
+
+              <p className="text-sm text-slate-500 mt-1">
+                Explore tenders available across different departments and
+                locations.
+              </p>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-xl p-4">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search tender ID, title, department or location..."
+                  className="w-full pl-10 pr-4 py-3 border border-slate-200 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#1b4e7e]/20"
+                />
+
+                <svg
+                  className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.637 10.637z"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {findTenderData
+                .filter(
+                  (tender) =>
+                    tender.title
+                      .toLowerCase()
+                      .includes(searchQuery.toLowerCase()) ||
+                    tender.id
+                      .toLowerCase()
+                      .includes(searchQuery.toLowerCase()) ||
+                    tender.department
+                      .toLowerCase()
+                      .includes(searchQuery.toLowerCase()) ||
+                    tender.location
+                      .toLowerCase()
+                      .includes(searchQuery.toLowerCase()),
+                )
+                .map((tender) => (
+                  <div
+                    key={tender.id}
+                    className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex justify-between items-start gap-3">
+                      <div>
+                        <span className="text-[10px] font-bold text-[#1b4e7e]">
+                          {tender.id}
+                        </span>
+
+                        <h3 className="font-bold text-slate-800 text-sm mt-1">
+                          {tender.title}
+                        </h3>
+
+                        <p className="text-xs text-slate-500 mt-1">
+                          {tender.department}
+                        </p>
+                      </div>
+
+                      <span className="px-2 py-1 rounded-md bg-blue-50 text-[#1b4e7e] text-[10px] font-bold">
+                        OPEN
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 mt-5">
+                      <div className="bg-slate-50 rounded-lg p-3">
+                        <p className="text-[10px] text-slate-400">Category</p>
+                        <p className="text-xs font-bold text-slate-700 mt-1">
+                          {tender.category}
+                        </p>
+                      </div>
+
+                      <div className="bg-slate-50 rounded-lg p-3">
+                        <p className="text-[10px] text-slate-400">Location</p>
+                        <p className="text-xs font-bold text-slate-700 mt-1">
+                          {tender.location}
+                        </p>
+                      </div>
+
+                      <div className="bg-slate-50 rounded-lg p-3">
+                        <p className="text-[10px] text-slate-400">Value</p>
+                        <p className="text-xs font-bold text-slate-700 mt-1">
+                          {tender.value}
+                        </p>
+                      </div>
+
+                      <div className="bg-slate-50 rounded-lg p-3">
+                        <p className="text-[10px] text-slate-400">Deadline</p>
+                        <p className="text-xs font-bold text-red-600 mt-1">
+                          {tender.deadline}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() =>
+                        setSelectedTender({
+                          id: tender.id,
+                          title: tender.title,
+                          dept: tender.department,
+                          location: tender.location,
+                          value: tender.value,
+                          deadline: tender.deadline,
+                          match: "High Match",
+                          status: "active",
+                        })
+                      }
+                      className="w-full mt-5 bg-[#1b4e7e] hover:bg-[#163f65] text-white py-2.5 rounded-lg text-xs font-bold"
+                    >
+                      View Details & Apply
+                    </button>
+                  </div>
+                ))}
+            </div>
+          </section>
+        )}
+
+        {/* ========================================================= */}
+        {/* ====================== CATEGORIES ====================== */}
+        {/* ========================================================= */}
+
+        {activeSubNav === "categories" && (
+          <section className="space-y-6">
+            <div>
+              <h2 className="text-xl font-bold text-slate-800">
+                Tender Categories
+              </h2>
+
+              <p className="text-sm text-slate-500 mt-1">
+                Browse tenders based on your preferred business category.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+              {categoryData.map((category) => (
+                <div
+                  key={category.name}
+                  className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md hover:border-[#1b4e7e]/30 transition-all"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="w-11 h-11 rounded-lg bg-[#eef5fb] flex items-center justify-center text-[#1b4e7e] font-black">
+                      {category.name.charAt(0)}
+                    </div>
+
+                    <span className="px-2.5 py-1 rounded-md bg-slate-100 text-slate-600 text-[10px] font-bold">
+                      {category.count} Tenders
+                    </span>
+                  </div>
+
+                  <h3 className="text-sm font-bold text-slate-800 mt-4">
+                    {category.name}
+                  </h3>
+
+                  <p className="text-xs text-slate-500 leading-relaxed mt-2 min-h-[38px]">
+                    {category.description}
+                  </p>
+
+                  <button
+                    onClick={() => {
+                      setSearchQuery(category.name);
+                      setActiveSubNav("find");
+                    }}
+                    className="w-full mt-5 border border-[#1b4e7e]/20 text-[#1b4e7e] hover:bg-[#1b4e7e] hover:text-white py-2.5 rounded-lg text-xs font-bold transition-colors"
+                  >
+                    Browse Tenders →
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ========================================================= */}
+        {/* ==================== APPLIED TENDERS ==================== */}
+        {/* ========================================================= */}
+
+        {activeSubNav === "applied" && (
+          <section className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">
+                  Applied Tenders
+                </h2>
+
+                <p className="text-sm text-slate-500 mt-1">
+                  Track all tenders where you have submitted a bid.
+                </p>
+              </div>
+
+              <span className="px-3 py-1.5 rounded-lg bg-blue-50 text-[#1b4e7e] text-xs font-bold">
+                {appliedTenderData.length} Applications
+              </span>
+            </div>
+
+            <div className="space-y-4">
+              {appliedTenderData.map((tender) => (
+                <div
+                  key={tender.id}
+                  className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm"
+                >
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+                    <div className="flex-1">
+                      <span className="text-[10px] font-bold text-[#1b4e7e]">
+                        {tender.id}
+                      </span>
+
+                      <h3 className="text-sm font-bold text-slate-800 mt-1">
+                        {tender.title}
+                      </h3>
+
+                      <p className="text-xs text-slate-500 mt-1">
+                        {tender.department}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 text-xs">
+                      <div>
+                        <p className="text-slate-400 text-[10px]">Category</p>
+                        <p className="font-bold text-slate-700 mt-1">
+                          {tender.category}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-slate-400 text-[10px]">Submitted</p>
+                        <p className="font-bold text-slate-700 mt-1">
+                          {tender.submittedOn}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-slate-400 text-[10px]">Bid Amount</p>
+                        <p className="font-bold text-slate-700 mt-1">
+                          {tender.bidAmount}
+                        </p>
+                      </div>
+                    </div>
+
+                    <span className="px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-100 text-[10px] font-bold whitespace-nowrap">
+                      {tender.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ========================================================= */}
+        {/* ===================== PAST HISTORY ====================== */}
+        {/* ========================================================= */}
+
+        {activeSubNav === "history" && (
+          <section className="space-y-6">
+            <div>
+              <h2 className="text-xl font-bold text-slate-800">Past History</h2>
+
+              <p className="text-sm text-slate-500 mt-1">
+                Review your previous tender applications and results.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {pastHistoryData.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm"
+                >
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+                    <div className="flex-1">
+                      <span className="text-[10px] font-bold text-[#1b4e7e]">
+                        {item.id}
+                      </span>
+
+                      <h3 className="text-sm font-bold text-slate-800 mt-1">
+                        {item.title}
+                      </h3>
+
+                      <p className="text-xs text-slate-500 mt-1">
+                        {item.department}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 text-xs">
+                      <div>
+                        <p className="text-slate-400 text-[10px]">Category</p>
+                        <p className="font-bold text-slate-700 mt-1">
+                          {item.category}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-slate-400 text-[10px]">Applied On</p>
+                        <p className="font-bold text-slate-700 mt-1">
+                          {item.appliedOn}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-slate-400 text-[10px]">Bid Amount</p>
+                        <p className="font-bold text-slate-700 mt-1">
+                          {item.bidAmount}
+                        </p>
+                      </div>
+                    </div>
+
+                    <span
+                      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold whitespace-nowrap ${
+                        item.result === "Awarded"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                          : "bg-rose-50 text-rose-700 border border-rose-100"
+                      }`}
+                    >
+                      {item.result}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ========================================================= */}
+        {/* ======================= UPCOMING ======================== */}
+        {/* ========================================================= */}
+
+        {activeSubNav === "upcoming" && (
+          <section className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">
+                  Upcoming Tenders
+                </h2>
+
+                <p className="text-sm text-slate-500 mt-1">
+                  Tenders that will be opening soon.
+                </p>
+              </div>
+
+              <span className="px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 text-xs font-bold border border-violet-100">
+                {upcomingTenderData.length} Upcoming
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {upcomingTenderData.map((tender) => (
+                <div
+                  key={tender.id}
+                  className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow"
+                >
+                  <div className="flex justify-between items-start gap-3">
+                    <div>
+                      <span className="text-[10px] font-bold text-[#1b4e7e]">
+                        {tender.id}
+                      </span>
+
+                      <h3 className="text-sm font-bold text-slate-800 mt-1">
+                        {tender.title}
+                      </h3>
+
+                      <p className="text-xs text-slate-500 mt-1">
+                        {tender.department}
+                      </p>
+                    </div>
+
+                    <span className="px-2 py-1 rounded-md bg-violet-50 text-violet-700 text-[10px] font-bold">
+                      UPCOMING
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 mt-5">
+                    <div className="bg-slate-50 rounded-lg p-3">
+                      <p className="text-[10px] text-slate-400">Category</p>
+
+                      <p className="text-xs font-bold text-slate-700 mt-1">
+                        {tender.category}
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-lg p-3">
+                      <p className="text-[10px] text-slate-400">Location</p>
+
+                      <p className="text-xs font-bold text-slate-700 mt-1">
+                        {tender.location}
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-lg p-3">
+                      <p className="text-[10px] text-slate-400">Tender Value</p>
+
+                      <p className="text-xs font-bold text-slate-700 mt-1">
+                        {tender.value}
+                      </p>
+                    </div>
+
+                    <div className="bg-slate-50 rounded-lg p-3">
+                      <p className="text-[10px] text-slate-400">Opening Date</p>
+
+                      <p className="text-xs font-bold text-[#1b4e7e] mt-1">
+                        {tender.openingDate}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      alert(
+                        `${tender.title} will open on ${tender.openingDate}`,
+                      );
+                    }}
+                    className="w-full mt-5 border border-[#1b4e7e]/20 text-[#1b4e7e] hover:bg-[#1b4e7e] hover:text-white py-2.5 rounded-lg text-xs font-bold transition-colors"
+                  >
+                    View Tender Information
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
 
       {/* 3. Modal Forms overlay popup */}
-      
+
       {/* Reverse Auction Arena Modal */}
       {reverseArenaBidOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-sm w-full p-6 text-left space-y-4">
             <div>
-              <span className="text-[9px] font-bold bg-[#e07a5f] text-white px-2 py-0.5 rounded">REVERSE ARENA BID</span>
+              <span className="text-[9px] font-bold bg-[#e07a5f] text-white px-2 py-0.5 rounded">
+                REVERSE ARENA BID
+              </span>
               <h3 className="text-base font-bold text-slate-800 mt-2">
-                {auctions.find(a => a.id === 'OSD/7734')?.id} - {auctions.find(a => a.id === 'OSD/7734')?.title}
+                {auctions.find((a) => a.id === "OSD/7734")?.id} -{" "}
+                {auctions.find((a) => a.id === "OSD/7734")?.title}
               </h3>
             </div>
 
             <div className="p-3 bg-slate-50 rounded-lg text-xs text-slate-600 border border-slate-100">
-              <p><strong>Current Lowest Bidded Amount:</strong><br /><span className="text-sm font-bold text-slate-800">₹ {(auctions.find(a => a.id === 'OSD/7734')?.lowestBid || 12500).toLocaleString()}</span></p>
+              <p>
+                <strong>Current Lowest Bidded Amount:</strong>
+                <br />
+                <span className="text-sm font-bold text-slate-800">
+                  ₹{" "}
+                  {(
+                    auctions.find((a) => a.id === "OSD/7734")?.lowestBid ||
+                    12500
+                  ).toLocaleString()}
+                </span>
+              </p>
             </div>
 
             <form onSubmit={handleReverseArenaBid} className="space-y-4">
@@ -857,7 +2393,7 @@ export default function DashboardPage() {
                     value={reverseBidInput}
                     onChange={(e) => setReverseBidInput(e.target.value)}
                     className="w-full pl-7 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-slate-800"
-                    placeholder={`Must be below ₹${(auctions.find(a => a.id === 'OSD/7734')?.lowestBid || 12500).toLocaleString()}`}
+                    placeholder={`Must be below ₹${(auctions.find((a) => a.id === "OSD/7734")?.lowestBid || 12500).toLocaleString()}`}
                   />
                 </div>
               </div>
@@ -888,34 +2424,73 @@ export default function DashboardPage() {
           <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-md w-full p-6 text-left space-y-4">
             <div className="flex justify-between items-start">
               <div>
-                <span className="text-[9px] font-bold bg-[#1b4e7e] text-white px-2 py-0.5 rounded">NIC VAULT SERVICES</span>
-                <h3 className="text-base font-bold text-slate-800 mt-2">Document Vault Access</h3>
+                <span className="text-[9px] font-bold bg-[#1b4e7e] text-white px-2 py-0.5 rounded">
+                  NIC VAULT SERVICES
+                </span>
+                <h3 className="text-base font-bold text-slate-800 mt-2">
+                  Document Vault Access
+                </h3>
               </div>
               <button
                 onClick={() => setVaultOpen(false)}
                 className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 18 18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
 
             <p className="text-xs text-slate-500 leading-relaxed">
-              These pre-uploaded documents are securely signed and automatically verified by the government certifying authority (NIC-CA) for immediate bid submissions.
+              These pre-uploaded documents are securely signed and automatically
+              verified by the government certifying authority (NIC-CA) for
+              immediate bid submissions.
             </p>
 
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
               {[
-                { name: 'GSTIN_Registration_Certificate.pdf', size: '1.2 MB', desc: 'GST Registration Certificate - Form REG-06' },
-                { name: 'PAN_Corporate_Card_Verification.pdf', size: '820 KB', desc: 'Enterprise PAN Verification Record' },
-                { name: 'Contractor_Class-I_License.pdf', size: '2.4 MB', desc: 'Class-I Contractor License (NIC-Gov)' },
-                { name: 'Latest_ITR_Form-5_AY24.pdf', size: '3.1 MB', desc: 'Income Tax Return statement' }
+                {
+                  name: "GSTIN_Registration_Certificate.pdf",
+                  size: "1.2 MB",
+                  desc: "GST Registration Certificate - Form REG-06",
+                },
+                {
+                  name: "PAN_Corporate_Card_Verification.pdf",
+                  size: "820 KB",
+                  desc: "Enterprise PAN Verification Record",
+                },
+                {
+                  name: "Contractor_Class-I_License.pdf",
+                  size: "2.4 MB",
+                  desc: "Class-I Contractor License (NIC-Gov)",
+                },
+                {
+                  name: "Latest_ITR_Form-5_AY24.pdf",
+                  size: "3.1 MB",
+                  desc: "Income Tax Return statement",
+                },
               ].map((doc, idx) => (
-                <div key={idx} className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between text-xs gap-3">
+                <div
+                  key={idx}
+                  className="p-3 bg-slate-50 rounded-lg border border-slate-200 flex items-center justify-between text-xs gap-3"
+                >
                   <div className="truncate space-y-0.5">
-                    <span className="font-bold text-slate-700 block truncate">{doc.name}</span>
-                    <span className="text-[10px] text-slate-400 block">{doc.desc} ({doc.size})</span>
+                    <span className="font-bold text-slate-700 block truncate">
+                      {doc.name}
+                    </span>
+                    <span className="text-[10px] text-slate-400 block">
+                      {doc.desc} ({doc.size})
+                    </span>
                   </div>
                   <span className="text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-full uppercase shrink-0">
                     Verified
@@ -942,14 +2517,24 @@ export default function DashboardPage() {
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-md w-full p-6 text-left space-y-4">
             <div>
-              <span className="text-[9px] font-bold bg-primary text-white px-2 py-0.5 rounded">TENDER ENROLMENT</span>
-              <h3 className="text-base font-bold text-slate-800 mt-2">{selectedTender.title}</h3>
-              <p className="text-[10px] font-mono text-slate-400 mt-0.5">{selectedTender.id} | {selectedTender.dept}</p>
+              <span className="text-[9px] font-bold bg-primary text-white px-2 py-0.5 rounded">
+                TENDER ENROLMENT
+              </span>
+              <h3 className="text-base font-bold text-slate-800 mt-2">
+                {selectedTender.title}
+              </h3>
+              <p className="text-[10px] font-mono text-slate-400 mt-0.5">
+                {selectedTender.id} | {selectedTender.dept}
+              </p>
             </div>
 
             <div className="p-3 bg-slate-50 rounded-lg text-xs leading-relaxed text-slate-600 border border-slate-100">
-              <p><strong>Estimated Value:</strong> {selectedTender.value}</p>
-              <p><strong>Submission Deadline:</strong> {selectedTender.deadline}</p>
+              <p>
+                <strong>Estimated Value:</strong> {selectedTender.value}
+              </p>
+              <p>
+                <strong>Submission Deadline:</strong> {selectedTender.deadline}
+              </p>
             </div>
 
             <div className="flex gap-2.5 pt-2 justify-end">
@@ -969,44 +2554,94 @@ export default function DashboardPage() {
       {quickApplyTender && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-md w-full p-6 text-left space-y-4">
-            
             {quickApplyStep === 1 && (
               <form onSubmit={executeQuickApply} className="space-y-4">
                 <div className="flex justify-between items-start">
                   <div>
-                    <span className="text-[9px] font-bold bg-[#1b4e7e] text-white px-2 py-0.5 rounded">NIC VAULT QUICK APPLY</span>
-                    <h3 className="text-base font-bold text-slate-800 mt-2">Confirm Quick Apply Bid</h3>
+                    <span className="text-[9px] font-bold bg-[#1b4e7e] text-white px-2 py-0.5 rounded">
+                      NIC VAULT QUICK APPLY
+                    </span>
+                    <h3 className="text-base font-bold text-slate-800 mt-2">
+                      Confirm Quick Apply Bid
+                    </h3>
                   </div>
                   <button
                     type="button"
                     onClick={() => setQuickApplyTender(null)}
                     className="text-slate-400 hover:text-slate-600 cursor-pointer"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M6 18 18 6M6 6l12 12"
+                      />
                     </svg>
                   </button>
                 </div>
 
                 <div className="bg-[#f0f6fc] p-4 rounded-lg border border-slate-200/50 space-y-2 text-xs text-slate-700">
-                  <p><span className="text-slate-400 font-semibold">Tender ID:</span> <span className="font-bold text-slate-800">{quickApplyTender.id}</span></p>
-                  <p><span className="text-slate-400 font-semibold">Tender Title:</span> <span className="font-bold text-slate-800">{quickApplyTender.title}</span></p>
-                  <p><span className="text-slate-400 font-semibold">Department:</span> <span className="font-bold text-slate-800">{quickApplyTender.dept}</span></p>
-                  <p><span className="text-slate-400 font-semibold">Est. Value:</span> <span className="font-bold text-slate-800">{quickApplyTender.value}</span></p>
+                  <p>
+                    <span className="text-slate-400 font-semibold">
+                      Tender ID:
+                    </span>{" "}
+                    <span className="font-bold text-slate-800">
+                      {quickApplyTender.id}
+                    </span>
+                  </p>
+                  <p>
+                    <span className="text-slate-400 font-semibold">
+                      Tender Title:
+                    </span>{" "}
+                    <span className="font-bold text-slate-800">
+                      {quickApplyTender.title}
+                    </span>
+                  </p>
+                  <p>
+                    <span className="text-slate-400 font-semibold">
+                      Department:
+                    </span>{" "}
+                    <span className="font-bold text-slate-800">
+                      {quickApplyTender.dept}
+                    </span>
+                  </p>
+                  <p>
+                    <span className="text-slate-400 font-semibold">
+                      Est. Value:
+                    </span>{" "}
+                    <span className="font-bold text-slate-800">
+                      {quickApplyTender.value}
+                    </span>
+                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">Documents to be attached from Vault</span>
+                  <span className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">
+                    Documents to be attached from Vault
+                  </span>
                   <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
                     {[
-                      'GSTIN_Registration_Certificate.pdf',
-                      'PAN_Corporate_Card_Verification.pdf',
-                      'Contractor_Class-I_License.pdf',
-                      'Latest_ITR_Form-5_AY24.pdf'
+                      "GSTIN_Registration_Certificate.pdf",
+                      "PAN_Corporate_Card_Verification.pdf",
+                      "Contractor_Class-I_License.pdf",
+                      "Latest_ITR_Form-5_AY24.pdf",
                     ].map((name, idx) => (
-                      <div key={idx} className="flex items-center justify-between text-[11px] p-2 bg-slate-50 border border-slate-200 rounded">
-                        <span className="truncate text-slate-600 font-medium">{name}</span>
-                        <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full shrink-0">Ready</span>
+                      <div
+                        key={idx}
+                        className="flex items-center justify-between text-[11px] p-2 bg-slate-50 border border-slate-200 rounded"
+                      >
+                        <span className="truncate text-slate-600 font-medium">
+                          {name}
+                        </span>
+                        <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full shrink-0">
+                          Ready
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -1015,7 +2650,7 @@ export default function DashboardPage() {
                 {/* Bid Value Input Form from Image 2 */}
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-widest mb-1.5">
-                    Enter Your Bid Value (in Crores)
+                    Enter Your Bid Value (in Lakhs)
                   </label>
                   <div className="relative rounded-md shadow-sm">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 font-bold text-xs">
@@ -1031,7 +2666,7 @@ export default function DashboardPage() {
                       placeholder="e.g. 45.80"
                     />
                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400 font-bold text-[10px] uppercase">
-                      Crores
+                      lakhs
                     </div>
                   </div>
                   <p className="text-[10px] text-slate-400 mt-1 leading-snug">
@@ -1061,9 +2696,12 @@ export default function DashboardPage() {
               <div className="py-8 flex flex-col items-center justify-center text-center space-y-4">
                 <div className="w-10 h-10 border-4 border-[#1b4e7e] border-t-transparent rounded-full animate-spin"></div>
                 <div className="space-y-1">
-                  <h4 className="text-sm font-bold text-slate-800">Submitting Vault Application</h4>
+                  <h4 className="text-sm font-bold text-slate-800">
+                    Submitting Vault Application
+                  </h4>
                   <p className="text-[11px] text-slate-500 max-w-xs leading-relaxed">
-                    Connecting to NIC Vault, downloading verified compliance certificates, and applying digital signature...
+                    Connecting to NIC Vault, downloading verified compliance
+                    certificates, and applying digital signature...
                   </p>
                 </div>
               </div>
@@ -1072,14 +2710,30 @@ export default function DashboardPage() {
             {quickApplyStep === 3 && (
               <div className="py-6 flex flex-col items-center justify-center text-center space-y-4">
                 <div className="w-12 h-12 bg-emerald-100 border border-emerald-200 rounded-full flex items-center justify-center text-emerald-600">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5"/>
+                  <svg
+                    className="w-6 h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="m4.5 12.75 6 6 9-13.5"
+                    />
                   </svg>
                 </div>
                 <div className="space-y-1.5">
-                  <h4 className="text-sm font-bold text-slate-800">Application Submitted!</h4>
+                  <h4 className="text-sm font-bold text-slate-800">
+                    Application Submitted!
+                  </h4>
                   <p className="text-[11px] text-slate-500 max-w-xs leading-relaxed">
-                    Your bid for <span className="font-bold text-slate-700">{quickApplyTender.title}</span> has been published successfully.
+                    Your bid for{" "}
+                    <span className="font-bold text-slate-700">
+                      {quickApplyTender.title}
+                    </span>{" "}
+                    has been published successfully.
                   </p>
                   <div className="bg-slate-50 p-2 rounded border border-slate-100 text-[10px] text-slate-400 font-mono select-all">
                     Bid Sync Token: GeM-VAULT-228749
@@ -1094,14 +2748,12 @@ export default function DashboardPage() {
                 </button>
               </div>
             )}
-
           </div>
         </div>
       )}
 
       {/* Footer Simple */}
       <FooterSimple />
-
     </div>
   );
 }
