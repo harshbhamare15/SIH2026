@@ -1,7 +1,7 @@
 "use client";
 
 // Force re-build clean swc cache
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import FooterSimple from "@/components/FooterSimple";
 
@@ -37,6 +37,128 @@ interface TenderItem {
   match: "High Match" | "Medium Match";
   status: "active" | "submitted";
   myBid?: string;
+  distanceKm?: number;
+  distanceText?: string;
+}
+
+const CITY_COORDINATES: Record<string, { lat: number; lng: number; city: string; state: string }> = {
+  "delhi": { lat: 28.6139, lng: 77.2090, city: "New Delhi", state: "Delhi" },
+  "new delhi": { lat: 28.6139, lng: 77.2090, city: "New Delhi", state: "Delhi" },
+  "mumbai": { lat: 19.0760, lng: 72.8777, city: "Mumbai", state: "Maharashtra" },
+  "bengaluru": { lat: 12.9716, lng: 77.5946, city: "Bengaluru", state: "Karnataka" },
+  "bangalore": { lat: 12.9716, lng: 77.5946, city: "Bengaluru", state: "Karnataka" },
+  "hyderabad": { lat: 17.3850, lng: 78.4867, city: "Hyderabad", state: "Telangana" },
+  "chennai": { lat: 13.0827, lng: 80.2707, city: "Chennai", state: "Tamil Nadu" },
+  "kolkata": { lat: 22.5726, lng: 88.3639, city: "Kolkata", state: "West Bengal" },
+  "ahmedabad": { lat: 23.0225, lng: 72.5714, city: "Ahmedabad", state: "Gujarat" },
+  "pune": { lat: 18.5204, lng: 73.8567, city: "Pune", state: "Maharashtra" },
+  "jaipur": { lat: 26.9124, lng: 75.7873, city: "Jaipur", state: "Rajasthan" },
+  "surat": { lat: 21.1702, lng: 72.8311, city: "Surat", state: "Gujarat" },
+  "lucknow": { lat: 26.8467, lng: 80.9462, city: "Lucknow", state: "Uttar Pradesh" },
+  "kanpur": { lat: 26.4499, lng: 80.3319, city: "Kanpur", state: "Uttar Pradesh" },
+  "nagpur": { lat: 21.1458, lng: 79.0882, city: "Nagpur", state: "Maharashtra" },
+  "indore": { lat: 22.7196, lng: 75.8577, city: "Indore", state: "Madhya Pradesh" },
+  "bhopal": { lat: 23.2599, lng: 77.4126, city: "Bhopal", state: "Madhya Pradesh" },
+  "patna": { lat: 25.5941, lng: 85.1376, city: "Patna", state: "Bihar" },
+  "vadodara": { lat: 22.3072, lng: 73.1812, city: "Vadodara", state: "Gujarat" },
+  "ghaziabad": { lat: 28.6692, lng: 77.4538, city: "Ghaziabad", state: "Uttar Pradesh" },
+  "ludhiana": { lat: 30.9010, lng: 75.8573, city: "Ludhiana", state: "Punjab" },
+  "agra": { lat: 27.1767, lng: 78.0081, city: "Agra", state: "Uttar Pradesh" },
+  "nashik": { lat: 19.9975, lng: 73.7898, city: "Nashik", state: "Maharashtra" },
+  "faridabad": { lat: 28.4089, lng: 77.3178, city: "Faridabad", state: "Haryana" },
+  "meerut": { lat: 28.9845, lng: 77.7064, city: "Meerut", state: "Uttar Pradesh" },
+  "rajkot": { lat: 22.3039, lng: 70.8022, city: "Rajkot", state: "Gujarat" },
+  "varanasi": { lat: 25.3176, lng: 82.9739, city: "Varanasi", state: "Uttar Pradesh" },
+  "srinagar": { lat: 34.0837, lng: 74.7973, city: "Srinagar", state: "Jammu and Kashmir" },
+  "aurangabad": { lat: 19.8762, lng: 75.3433, city: "Aurangabad", state: "Maharashtra" },
+  "dhanbad": { lat: 23.7957, lng: 86.4304, city: "Dhanbad", state: "Jharkhand" },
+  "amritsar": { lat: 31.6340, lng: 74.8723, city: "Amritsar", state: "Punjab" },
+  "navi mumbai": { lat: 19.0330, lng: 73.0297, city: "Navi Mumbai", state: "Maharashtra" },
+  "allahabad": { lat: 25.4358, lng: 81.8463, city: "Prayagraj", state: "Uttar Pradesh" },
+  "prayagraj": { lat: 25.4358, lng: 81.8463, city: "Prayagraj", state: "Uttar Pradesh" },
+  "ranchi": { lat: 23.3441, lng: 85.3096, city: "Ranchi", state: "Jharkhand" },
+  "howrah": { lat: 22.5958, lng: 88.2636, city: "Howrah", state: "West Bengal" },
+  "coimbatore": { lat: 11.0168, lng: 76.9558, city: "Coimbatore", state: "Tamil Nadu" },
+  "jabalpur": { lat: 23.1815, lng: 79.9864, city: "Jabalpur", state: "Madhya Pradesh" },
+  "gwalior": { lat: 26.2183, lng: 78.1828, city: "Gwalior", state: "Madhya Pradesh" },
+  "vijayawada": { lat: 16.5062, lng: 80.6480, city: "Vijayawada", state: "Andhra Pradesh" },
+  "jodhpur": { lat: 26.2389, lng: 73.0243, city: "Jodhpur", state: "Rajasthan" },
+  "madurai": { lat: 9.9252, lng: 78.1198, city: "Madurai", state: "Tamil Nadu" },
+  "raipur": { lat: 21.2514, lng: 81.6296, city: "Raipur", state: "Chhattisgarh" },
+  "kota": { lat: 25.2138, lng: 75.8648, city: "Kota", state: "Rajasthan" },
+  "guwahati": { lat: 26.1445, lng: 91.7362, city: "Guwahati", state: "Assam" },
+  "chandigarh": { lat: 30.7333, lng: 76.7794, city: "Chandigarh", state: "Chandigarh" },
+  "bhubaneswar": { lat: 20.2961, lng: 85.8245, city: "Bhubaneswar", state: "Odisha" },
+  "thiruvananthapuram": { lat: 8.5241, lng: 76.9366, city: "Thiruvananthapuram", state: "Kerala" },
+  "kochi": { lat: 9.9312, lng: 76.2673, city: "Kochi", state: "Kerala" },
+  "dehradun": { lat: 30.3165, lng: 78.0322, city: "Dehradun", state: "Uttarakhand" },
+  "shimla": { lat: 31.1048, lng: 77.1734, city: "Shimla", state: "Himachal Pradesh" },
+  "panaji": { lat: 15.4909, lng: 73.8278, city: "Panaji", state: "Goa" },
+  "gandhinagar": { lat: 23.2156, lng: 72.6369, city: "Gandhinagar", state: "Gujarat" },
+  "noida": { lat: 28.5355, lng: 77.3910, city: "Noida", state: "Uttar Pradesh" },
+  "gurugram": { lat: 28.4595, lng: 77.0266, city: "Gurugram", state: "Haryana" },
+  "gurgaon": { lat: 28.4595, lng: 77.0266, city: "Gurugram", state: "Haryana" },
+  // States
+  "gujarat": { lat: 22.2587, lng: 71.1924, city: "Gandhinagar", state: "Gujarat" },
+  "maharashtra": { lat: 19.7515, lng: 75.7139, city: "Mumbai", state: "Maharashtra" },
+  "rajasthan": { lat: 27.0238, lng: 74.2179, city: "Jaipur", state: "Rajasthan" },
+  "karnataka": { lat: 15.3173, lng: 75.7139, city: "Bengaluru", state: "Karnataka" },
+  "tamil nadu": { lat: 11.1271, lng: 78.6569, city: "Chennai", state: "Tamil Nadu" },
+  "uttar pradesh": { lat: 26.8467, lng: 80.9462, city: "Lucknow", state: "Uttar Pradesh" },
+  "west bengal": { lat: 22.9868, lng: 87.8550, city: "Kolkata", state: "West Bengal" },
+  "madhya pradesh": { lat: 22.9734, lng: 78.6569, city: "Bhopal", state: "Madhya Pradesh" },
+  "bihar": { lat: 25.0961, lng: 85.3131, city: "Patna", state: "Bihar" },
+  "punjab": { lat: 31.1471, lng: 75.3412, city: "Ludhiana", state: "Punjab" },
+  "haryana": { lat: 29.0588, lng: 76.0856, city: "Gurugram", state: "Haryana" },
+  "andhra pradesh": { lat: 15.9129, lng: 79.7400, city: "Vijayawada", state: "Andhra Pradesh" },
+  "telangana": { lat: 18.1124, lng: 79.0193, city: "Hyderabad", state: "Telangana" },
+  "kerala": { lat: 10.8505, lng: 76.2711, city: "Kochi", state: "Kerala" },
+  "odisha": { lat: 20.9517, lng: 85.0985, city: "Bhubaneswar", state: "Odisha" },
+  "assam": { lat: 26.2006, lng: 92.9376, city: "Guwahati", state: "Assam" },
+  "jharkhand": { lat: 23.6102, lng: 85.2799, city: "Ranchi", state: "Jharkhand" },
+  "chhattisgarh": { lat: 21.2787, lng: 81.8661, city: "Raipur", state: "Chhattisgarh" },
+  "uttarakhand": { lat: 30.0668, lng: 79.0193, city: "Dehradun", state: "Uttarakhand" },
+  "himachal pradesh": { lat: 31.1048, lng: 77.1734, city: "Shimla", state: "Himachal Pradesh" },
+  "goa": { lat: 15.2993, lng: 74.1240, city: "Panaji", state: "Goa" },
+  "jammu and kashmir": { lat: 33.7782, lng: 76.5762, city: "Srinagar", state: "Jammu and Kashmir" }
+};
+
+function resolveLocationCoordinates(locationStr: string): { lat: number; lng: number; resolvedName: string } {
+  if (!locationStr) return { lat: 28.6139, lng: 77.2090, resolvedName: "New Delhi" };
+  const raw = locationStr.toLowerCase().trim();
+  
+  if (CITY_COORDINATES[raw]) {
+    return { lat: CITY_COORDINATES[raw].lat, lng: CITY_COORDINATES[raw].lng, resolvedName: CITY_COORDINATES[raw].city };
+  }
+  
+  const parts = raw.split(/[,/\-–]/).map(p => p.trim());
+  for (const part of parts) {
+    if (CITY_COORDINATES[part]) {
+      return { lat: CITY_COORDINATES[part].lat, lng: CITY_COORDINATES[part].lng, resolvedName: CITY_COORDINATES[part].city };
+    }
+  }
+
+  for (const [key, val] of Object.entries(CITY_COORDINATES)) {
+    if (raw.includes(key) || key.includes(raw)) {
+      return { lat: val.lat, lng: val.lng, resolvedName: val.city };
+    }
+  }
+
+  return { lat: 28.6139, lng: 77.2090, resolvedName: locationStr };
+}
+
+function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Earth radius in km
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
 }
 
 interface ArenaAuctionItem {
@@ -75,6 +197,7 @@ export default function DashboardPage() {
   const [vaultOpen, setVaultOpen] = useState(false);
   const [reverseArenaBidOpen, setReverseArenaBidOpen] = useState(false);
   const [reverseBidInput, setReverseBidInput] = useState("");
+  const [sortByNearest, setSortByNearest] = useState(true);
 
   // Buyer MetaMask Escrow State for Auction Portal
   const [activeWallet, setActiveWallet] = useState<string | null>(null);
@@ -835,6 +958,39 @@ export default function DashboardPage() {
     }
   };
 
+  // Source location from registered user profile
+  const userSourceCity = user?.city || user?.district || user?.state || "New Delhi";
+  const userSourceState = user?.state || "";
+  const sourceCoords = useMemo(() => {
+    return resolveLocationCoordinates(userSourceCity + (userSourceState ? `, ${userSourceState}` : ''));
+  }, [userSourceCity, userSourceState]);
+
+  // Calculate live Haversine distance between User Profile (Source) and Tender Location (Destination)
+  const tendersWithDistance = useMemo(() => {
+    return tenders.map((t) => {
+      const destCoords = resolveLocationCoordinates(t.location);
+      const dist = calculateHaversineDistance(
+        sourceCoords.lat,
+        sourceCoords.lng,
+        destCoords.lat,
+        destCoords.lng
+      );
+      return {
+        ...t,
+        distanceKm: dist,
+        distanceText: dist === 0 ? "Same City / Local Hub" : dist <= 25 ? `${dist} km away (Immediate Local)` : `${dist} km from ${userSourceCity}`,
+      };
+    });
+  }, [tenders, sourceCoords, userSourceCity]);
+
+  // Top 3 nearest recommended tenders for sidebar
+  const recommendedNearestTenders = useMemo(() => {
+    return [...tendersWithDistance]
+      .filter((t) => t.status === "active")
+      .sort((a, b) => (a.distanceKm || 0) - (b.distanceKm || 0))
+      .slice(0, 3);
+  }, [tendersWithDistance]);
+
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 font-sans">
@@ -845,23 +1001,30 @@ export default function DashboardPage() {
     );
   }
 
-  let baseTenders = tenders;
+  let baseTenders = tendersWithDistance;
 
   if (activeSubNav === "applied" || activeSubNav === "history") {
-    baseTenders = tenders.filter((t) => t.status === "submitted");
+    baseTenders = tendersWithDistance.filter((t) => t.status === "submitted");
   }
 
   if (activeSubNav === "live" || activeSubNav === "upcoming") {
-    baseTenders = tenders.filter((t) => t.status === "active");
+    baseTenders = tendersWithDistance.filter((t) => t.status === "active");
   }
 
-  const filteredTenders = baseTenders.filter(
-    (t) =>
-      t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.dept.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      t.location.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
+  const filteredTenders = baseTenders
+    .filter(
+      (t) =>
+        t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.dept.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        t.location.toLowerCase().includes(searchQuery.toLowerCase()),
+    )
+    .sort((a, b) => {
+      if (sortByNearest && a.distanceKm !== undefined && b.distanceKm !== undefined) {
+        return a.distanceKm - b.distanceKm;
+      }
+      return 0;
+    });
 
   const filteredAuctions = auctions.filter(
     (a) =>
@@ -1110,45 +1273,90 @@ export default function DashboardPage() {
         {activeSubNav === "dashboard" && (
           <>
             {/* Dashboard Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-extrabold text-slate-800 uppercase tracking-widest border-l-4 border-primary pl-3.5">
-                  {activeTab === "tender"
-                    ? "Active Tenders"
-                    : "Live Reverse Auction Arena"}
-                </h2>
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-base font-extrabold text-slate-800 uppercase tracking-widest border-l-4 border-primary pl-3.5">
+                    {activeTab === "tender"
+                      ? "Active Tenders"
+                      : "Live Reverse Auction Arena"}
+                  </h2>
 
-                {filterSubmittedOnly && activeTab === "tender" && (
-                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded">
-                    Filtered: Active Bids
-                  </span>
-                )}
-              </div>
+                  {filterSubmittedOnly && activeTab === "tender" && (
+                    <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded">
+                      Filtered: Active Bids
+                    </span>
+                  )}
+                </div>
 
-              {/* Search */}
-              <div className="relative w-full sm:w-64">
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-slate-800"
-                  placeholder={`Search ${activeTab} ID or Title...`}
-                />
-
-                <svg
-                  className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.637 10.637z"
+                {/* Search */}
+                <div className="relative w-full sm:w-64">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-8 pr-3 py-1.5 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-slate-800"
+                    placeholder={`Search ${activeTab} ID or Title...`}
                   />
-                </svg>
+
+                  <svg
+                    className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.637 10.637z"
+                    />
+                  </svg>
+                </div>
               </div>
+
+              {/* Enterprise Proximity Recommendation Filter Bar */}
+              {activeTab === "tender" && (
+                <div className="bg-slate-50/90 border border-slate-200/90 rounded-xl p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs shadow-xs">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <div className="flex items-center gap-2 text-slate-700">
+                      <svg className="w-4 h-4 text-[#1b4e7e] shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                      </svg>
+                      <span className="font-semibold text-slate-600">
+                        Operating Center:
+                      </span>
+                    </div>
+
+                    <span className="font-bold text-slate-800 bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-2xs">
+                      {userSourceCity}{userSourceState ? `, ${userSourceState}` : ''}
+                    </span>
+
+                    {/* <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/70">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      Proximity Filter Active
+                    </span> */} 
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap self-end md:self-auto">
+                    <button
+                      type="button"
+                      onClick={() => setSortByNearest(!sortByNearest)}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer inline-flex items-center gap-2 shadow-2xs ${
+                        sortByNearest
+                          ? "bg-[#1b4e7e] hover:bg-[#133c62] text-white border-[#1b4e7e]"
+                          : "bg-white hover:bg-slate-50 text-slate-700 border-slate-300"
+                      }`}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h14.25M3 9h9.75M3 13.5h5.25m5.25-.75L17.25 9m0 0L21 12.75M17.25 9v12" />
+                      </svg>
+                      {sortByNearest ? "Sort: Nearest First" : "Sort: Standard"}
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* ===================================================== */}
@@ -1337,26 +1545,71 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {/* Recommended */}
-                  <div className="bg-[#133c62] text-white rounded-xl shadow-md overflow-hidden p-6 border border-[#1b4e7e]">
-                    <h3 className="text-sm font-bold tracking-wider uppercase opacity-90 mb-4">
-                      Recommended Tenders
-                    </h3>
-
-                    <div className="bg-white rounded-lg p-4 text-slate-800 flex items-center justify-between gap-4">
-                      <div className="space-y-1">
-                        <span className="text-[11px] font-extrabold text-[#133c62] block">
-                          Recommended Tenders
-                        </span>
-
-                        <span className="text-[10px] text-slate-600 font-semibold block">
-                          OSD/7734 - Office Stationery Supply
-                        </span>
+                  {/* Regional Recommended Tenders Sidebar */}
+                  <div className="bg-[#133c62] text-white rounded-xl shadow-md overflow-hidden p-5 border border-[#1b4e7e] space-y-4">
+                    <div className="border-b border-white/10 pb-3">
+                      <div className="flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5 text-sky-300 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                        </svg>
+                        <h3 className="text-xs font-bold tracking-wider uppercase opacity-95">
+                          Regional Tender Matches
+                        </h3>
                       </div>
+                      <p className="text-[10px] text-white/70 mt-1">
+                        Prioritized by proximity to your operating hub ({userSourceCity})
+                      </p>
+                    </div>
 
-                      <div className="w-10 h-10 bg-blue-50 border border-blue-100 rounded-lg flex items-center justify-center shrink-0">
-                        <span className="text-[#1b4e7e] font-bold">✓</span>
-                      </div>
+                    <div className="space-y-3">
+                      {recommendedNearestTenders.length > 0 ? (
+                        recommendedNearestTenders.map((rec) => (
+                          <div
+                            key={rec.id}
+                            className="bg-white rounded-lg p-3 text-slate-800 space-y-2 border border-blue-100 shadow-2xs"
+                          >
+                            <div className="flex justify-between items-start gap-2">
+                              <span className="text-[11px] font-bold text-[#133c62] line-clamp-1">
+                                {rec.title}
+                              </span>
+                              {/* <span className="text-[9px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded whitespace-nowrap inline-flex items-center gap-1">
+                                <svg className="w-2.5 h-2.5 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+                                </svg>
+                                {rec.distanceText}
+                              </span> */}
+                            </div>
+
+                            <div className="flex justify-between items-center text-[10px] text-slate-500 font-medium">
+                              <span>ID: <strong className="text-slate-700">{rec.id}</strong></span>
+                              <span>Est: <strong className="text-slate-800">{rec.value}</strong></span>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 pt-1">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedTender(rec)}
+                                className="py-1 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-[10px] font-bold text-center cursor-pointer transition-colors"
+                              >
+                                View Details
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleQuickApply(rec)}
+                                className="py-1 px-2 bg-[#1b4e7e] hover:bg-[#133c62] text-white rounded text-[10px] font-bold text-center cursor-pointer transition-colors shadow-2xs"
+                              >
+                                Quick Apply
+                              </button>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-[11px] text-white/50 text-center py-2 italic">
+                          No active tenders nearby.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>
