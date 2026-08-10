@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
     const auctionCategory = category ? category.trim() : 'Consumables & Office Supplies';
     const auctionMode = mode ? mode.trim() : 'Reverse';
     const auctionTenderRef = tenderRef ? tenderRef.trim() : null;
-    const normalizedAdminWallet = adminWalletAddress ? adminWalletAddress.trim() : '0x71C2B9A23E45Fc49A109D90d0bFd5B59e99284F7';
+    const normalizedAdminWallet = adminWalletAddress ? adminWalletAddress.trim() : '';
 
     // Compute epoch timestamp for endsAt based on duration
     let totalSecs = typeof durationSeconds === 'number' && durationSeconds > 0 ? durationSeconds : 300; // default 5 mins

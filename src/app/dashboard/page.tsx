@@ -573,7 +573,7 @@ export default function DashboardPage() {
   // MetaMask Web3 Settlement Execution Handler
   const handleMetaMaskSettlement = async (auction: any) => {
     const targetId = auction.id || auction.auctionId;
-    const receiverAddress = auction.adminWalletAddress || '0x71C2B9A23E45Fc49A109D90d0bFd5B59e99284F7';
+    const receiverAddress = auction.adminWalletAddress || '';
     const rawAmount = typeof auction.winnerAmount === 'string' ? parseFloat(auction.winnerAmount.replace(/[^\d.]/g, '')) : (auction.lowestBid || 100);
     const ethString = auction.winnerEthAmount || convertInrToEth(rawAmount);
     const ethNumeric = parseFloat(ethString.replace(/[^\d.]/g, '')) || 0.0004;
@@ -793,7 +793,7 @@ export default function DashboardPage() {
         category: item.category || "Consumables & Office Supplies",
         mode: item.mode || "Reverse",
         myBid: item.myBid || undefined,
-        adminWalletAddress: item.adminWalletAddress || "0x71C2B9A23E45Fc49A109D90d0bFd5B59e99284F7",
+        adminWalletAddress: item.adminWalletAddress || "",
         winnerBidderId: item.winnerBidderId || item.winnerApplicantId,
         winnerName: item.winnerName,
         winnerOrg: item.winnerOrg,
@@ -2607,8 +2607,8 @@ export default function DashboardPage() {
 
                                         <div className="flex justify-between items-center text-[10px] text-slate-400 border-t border-slate-800 pt-2">
                                           <span>Admin Receiver:</span>
-                                          <span className="text-slate-300 truncate max-w-[170px]" title={item.adminWalletAddress || "0x71C2B9A23E45Fc49A109D90d0bFd5B59e99284F7"}>
-                                            {item.adminWalletAddress || "0x71C2B9A23E45Fc49A109D90d0bFd5B59e99284F7"}
+                                          <span className="text-slate-300 truncate max-w-[170px]" title={item.adminWalletAddress || "Not Specified"}>
+                                            {item.adminWalletAddress || "Not Specified"}
                                           </span>
                                         </div>
                                       </div>

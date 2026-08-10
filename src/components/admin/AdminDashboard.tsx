@@ -111,7 +111,12 @@ export default function AdminDashboard() {
   const [auctionMinutes, setAuctionMinutes] = useState('5');
   const [auctionSeconds, setAuctionSeconds] = useState('0');
   const [auctionCategory, setAuctionCategory] = useState('Consumables & Office Supplies');
-  const [adminWalletAddress, setAdminWalletAddress] = useState('0x71C2B9A23E45Fc49A109D90d0bFd5B59e99284F7');
+  const [adminWalletAddress, setAdminWalletAddress] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('admin-receiving-wallet') || '';
+    }
+    return '';
+  });
   const [copiedWallet, setCopiedWallet] = useState(false);
 
   // Normalizers to convert database schemas to Admin dashboard models
@@ -146,7 +151,7 @@ export default function AdminDashboard() {
       type: item.type || 'arena',
       category: item.category || 'Consumables & Office Supplies',
       mode: item.mode || 'Reverse',
-      adminWalletAddress: item.adminWalletAddress || '0x71C2B9A23E45Fc49A109D90d0bFd5B59e99284F7',
+      adminWalletAddress: item.adminWalletAddress || '',
       winnerBidderId: item.winnerBidderId || item.winnerApplicantId,
       winnerName: item.winnerName,
       winnerOrg: item.winnerOrg,
@@ -685,6 +690,9 @@ export default function AdminDashboard() {
         const accounts = await (window as any).ethereum.request({ method: 'eth_requestAccounts' });
         if (accounts && accounts[0]) {
           setAdminWalletAddress(accounts[0]);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('admin-receiving-wallet', accounts[0]);
+          }
           alert(`MetaMask Wallet Connected Successfully!\n\nReceiving Address:\n${accounts[0]}\n\nThis address will receive incoming ETH settlements when auctions are concluded.`);
         }
       } catch (err: any) {
@@ -911,7 +919,7 @@ export default function AdminDashboard() {
       type: 'arena',
       category: auctionCategory,
       mode: 'Reverse',
-      adminWalletAddress: adminWalletAddress.trim() || '0x71C2B9A23E45Fc49A109D90d0bFd5B59e99284F7',
+      adminWalletAddress: adminWalletAddress.trim(),
     };
 
     try {
@@ -1531,8 +1539,18 @@ export default function AdminDashboard() {
                     type="text"
                     required
                     value={adminWalletAddress}
-                    onChange={(e) => setAdminWalletAddress(e.target.value)}
-                    placeholder="0x..."
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setAdminWalletAddress(val);
+                      if (typeof window !== 'undefined') {
+                        if (val) {
+                          localStorage.setItem('admin-receiving-wallet', val);
+                        } else {
+                          localStorage.removeItem('admin-receiving-wallet');
+                        }
+                      }
+                    }}
+                    placeholder="0x... (Connect or paste receiving wallet address)"
                     className="w-full bg-[#f8fafc] border border-slate-200 focus:border-[#1b4e7e] rounded-lg py-2 px-3 text-xs font-mono font-bold text-slate-800 focus:outline-none transition-colors"
                   />
                   <p className="text-[10px] text-slate-400 mt-1">
