@@ -47,6 +47,9 @@ export async function ensureTablesExist(): Promise<void> {
       email VARCHAR(255) NOT NULL UNIQUE,
       mobile VARCHAR(20) NOT NULL,
       password VARCHAR(255) NOT NULL,
+      role VARCHAR(50) NOT NULL DEFAULT 'contractor',
+      walletAddress VARCHAR(255) NULL,
+      deviceFingerprint VARCHAR(255) NULL,
       orgType VARCHAR(100) NOT NULL,
       orgName VARCHAR(255) NOT NULL,
       pan VARCHAR(20) NOT NULL,
@@ -94,5 +97,24 @@ export async function ensureTablesExist(): Promise<void> {
   await db.query(createUsersTableQuery);
   await db.query(createAdminTableQuery);
   await db.query(createTendersTableQuery);
+
+  // Safe migration for existing users table
+  try {
+    const [cols] = await db.query<any[]>('SHOW COLUMNS FROM users LIKE "role"');
+    if (!cols || cols.length === 0) {
+      await db.query('ALTER TABLE users ADD COLUMN role VARCHAR(50) NOT NULL DEFAULT "contractor"');
+    }
+    const [walletCols] = await db.query<any[]>('SHOW COLUMNS FROM users LIKE "walletAddress"');
+    if (!walletCols || walletCols.length === 0) {
+      await db.query('ALTER TABLE users ADD COLUMN walletAddress VARCHAR(255) NULL');
+    }
+    const [fpCols] = await db.query<any[]>('SHOW COLUMNS FROM users LIKE "deviceFingerprint"');
+    if (!fpCols || fpCols.length === 0) {
+      await db.query('ALTER TABLE users ADD COLUMN deviceFingerprint VARCHAR(255) NULL');
+    }
+  } catch (e) {
+    console.error('Column migration error in users:', e);
+  }
+
   dbInitialized = true;
 }

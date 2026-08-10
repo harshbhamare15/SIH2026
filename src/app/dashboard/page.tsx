@@ -10,6 +10,9 @@ interface UserProfile {
   fullName: string;
   email: string;
   mobile: string;
+  role?: 'contractor' | 'buyer' | 'both' | string;
+  walletAddress?: string;
+  deviceFingerprint?: string;
   orgName: string;
   orgType?: string;
   pan?: string;
@@ -72,6 +75,62 @@ export default function DashboardPage() {
   const [vaultOpen, setVaultOpen] = useState(false);
   const [reverseArenaBidOpen, setReverseArenaBidOpen] = useState(false);
   const [reverseBidInput, setReverseBidInput] = useState("");
+
+  // Buyer MetaMask Escrow State for Auction Portal
+  const [activeWallet, setActiveWallet] = useState<string | null>(null);
+  const [activeNetwork, setActiveNetwork] = useState<string>("");
+  const [isConnectingWallet, setIsConnectingWallet] = useState(false);
+
+  const connectMetaMask = async () => {
+    if (typeof window === "undefined") return;
+    const eth = (window as any).ethereum;
+    if (!eth) {
+      alert("MetaMask extension not found. Please install MetaMask to access the Auction Portal on Ganache GUI.");
+      window.open("https://metamask.io/download/", "_blank");
+      return;
+    }
+    try {
+      setIsConnectingWallet(true);
+      const accounts: string[] = await eth.request({ method: "eth_requestAccounts" });
+      if (accounts && accounts.length > 0) {
+        setActiveWallet(accounts[0]);
+        try {
+          const chainIdHex = await eth.request({ method: "eth_chainId" });
+          const chainId = parseInt(chainIdHex, 16);
+          setActiveNetwork(chainId === 1337 || chainId === 5777 ? "Ganache GUI (Localhost RPC)" : `Chain ID: ${chainId}`);
+        } catch {
+          setActiveNetwork("Connected");
+        }
+      }
+    } catch (err: any) {
+      alert("MetaMask connection failed: " + (err?.message || "User rejected request"));
+    } finally {
+      setIsConnectingWallet(false);
+    }
+  };
+
+  const switchMetaMask = async () => {
+    if (typeof window === "undefined") return;
+    const eth = (window as any).ethereum;
+    if (!eth) return;
+    try {
+      setIsConnectingWallet(true);
+      try {
+        await eth.request({
+          method: "wallet_requestPermissions",
+          params: [{ eth_accounts: {} }],
+        });
+      } catch {}
+      const accounts: string[] = await eth.request({ method: "eth_requestAccounts" });
+      if (accounts && accounts.length > 0) {
+        setActiveWallet(accounts[0]);
+      }
+    } catch (err: any) {
+      console.log("Switch cancelled:", err);
+    } finally {
+      setIsConnectingWallet(false);
+    }
+  };
 
   // Registered Vendor Credentials & Interactive Vault States
   interface UserCredential {
@@ -563,6 +622,25 @@ export default function DashboardPage() {
         const tabParam = params.get("tab");
         if (tabParam === "tender" || tabParam === "auction") {
           setActiveTab(tabParam);
+        }
+      }
+
+      // Check existing MetaMask connection
+      if ((window as any).ethereum) {
+        const eth = (window as any).ethereum;
+        eth
+          .request({ method: "eth_accounts" })
+          .then((accounts: string[]) => {
+            if (accounts && accounts.length > 0) {
+              setActiveWallet(accounts[0]);
+            }
+          })
+          .catch(() => {});
+
+        if (eth.on) {
+          eth.on("accountsChanged", (accounts: string[]) => {
+            setActiveWallet(accounts && accounts.length > 0 ? accounts[0] : null);
+          });
         }
       }
 
@@ -1286,17 +1364,95 @@ export default function DashboardPage() {
             ) : (
               /* ===================================================== */
               /* AUCTION */
-              /* ===================================================== */
               <>
-                {auctionSubNav === "live" && (
-                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <div className="lg:col-span-2 space-y-6">
-                      {arenaAuctionMatch ? (
-                        <div className="bg-[#133c62] text-white rounded-xl shadow-md overflow-hidden p-6 border border-[#1b4e7e]">
-                          <div className="flex justify-between items-start gap-4">
-                            <h3 className="font-extrabold text-sm md:text-base">
-                              {arenaAuctionMatch.id} - {arenaAuctionMatch.title}
-                            </h3>
+                {/* Check if Buyer (or Dual Buyer+Contractor) is logged in without connected MetaMask */}
+                {(user?.role === 'buyer' || user?.role === 'both' || user?.role?.includes('buyer')) && !activeWallet ? (
+                  <div className="bg-white rounded-2xl border-2 border-amber-300/80 shadow-lg p-8 md:p-12 text-center max-w-2xl mx-auto space-y-6 animate-in fade-in duration-300">
+                    <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto shadow-xs">
+                      {/* MetaMask Fox SVG */}
+                      <svg className="w-10 h-10" viewBox="0 0 318.6 318.6" fill="none">
+                        <path d="M274.1 35.5l-99.5 73.9 19.6-46.6L274.1 35.5z" fill="#E2761B" stroke="#E2761B" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M44.4 35.5l98.7 74.6-18.8-47.3L44.4 35.5zM260.7 225.8l-26.6 40.8 45.4 12.5 13.7-52.5-32.5-.8zM25.5 226.6l13.7 52.5 45.4-12.5-26.6-40.8-32.5.8z" fill="#E4761B" stroke="#E4761B" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M116.6 115.5l-11.6 17.6 40.5 1.7-1.4-44.5-27.5 25.2zM202 115.5l27.4-25.3-1.3 44.6 40.5-1.7-11.6-17.6z" fill="#E4761B" stroke="#E4761B" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M84.5 266.6l37.8-18.4-32.5-25.3-5.3 43.7zM196.3 248.2l37.8 18.4-5.3-43.7-32.5 25.3z" fill="#D7C1B3" stroke="#D7C1B3" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M122.3 248.2l35.6 24.3 38.4-24.3-37.4 13.9-36.6-13.9z" fill="#233447" stroke="#233447" strokeLinejoin="round"/>
+                        <path d="M159.3 175.8l-37-3-12.7 19 36.9 1.1 12.8-17.1zM159.3 175.8l12.8 17.1 36.9-1.1-12.7-19-37 3z" fill="#CD6116" stroke="#CD6116" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M272.5 140.9l-14-38.3-25.5 23.6 10.9 16.5 28.6-1.8zM46.1 140.9l28.6 1.8 10.9-16.5-25.5-23.6-14 38.3z" fill="#E4751F" stroke="#E4751F" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M159.3 134.7l1.4 44.5 37-3-40.5 1.7 2.1-43.2zM159.3 134.7l-2.1 43.2-40.5-1.7 37 3 1.4-44.5z" fill="#E4751F" stroke="#E4751F" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </div>
+
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 px-3 py-1 rounded-full">
+                        Digital Escrow Gateway
+                      </span>
+                      <h3 className="text-xl font-black text-slate-800">
+                        Buyer Wallet Authorization Required
+                      </h3>
+                      <p className="text-xs text-slate-600 max-w-lg mx-auto leading-relaxed">
+                        You have registered with <strong>Procurement Buyer</strong> capabilities. To access and monitor live auctions, please connect your authorized Web3 digital wallet for automated smart contract escrow and bid settlement.
+                      </p>
+                    </div>
+
+                    {user?.walletAddress && (
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 max-w-md mx-auto text-left text-xs space-y-1">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Registered Buyer Wallet Address</span>
+                        <span className="font-mono font-bold text-slate-800 text-[11px] block truncate">
+                          {user.walletAddress}
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        disabled={isConnectingWallet}
+                        onClick={connectMetaMask}
+                        className="px-6 py-3 bg-[#f6851b] hover:bg-[#e2761b] text-white rounded-xl text-xs font-bold transition-all shadow-md hover:shadow-lg cursor-pointer inline-flex items-center gap-2"
+                      >
+                        {isConnectingWallet ? "Connecting to MetaMask..." : "Connect MetaMask Wallet & Enter Auction"}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    {/* Buyer Web3 Status Bar if logged in with buyer role and connected */}
+                    {(user?.role === 'buyer' || user?.role === 'both' || user?.role?.includes('buyer')) && activeWallet && (
+                      <div className="mb-6 p-3.5 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-2.5">
+                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                          <span className="font-bold text-slate-800">
+                            {user?.role === 'both' ? 'Dual Role (Contractor + Buyer) Web3 Escrow Active:' : 'Buyer Web3 Escrow Active:'}
+                          </span>
+                          <span className="font-mono font-bold text-emerald-800 bg-white px-2 py-0.5 rounded border border-emerald-200">
+                            {activeWallet.slice(0, 8)}...{activeWallet.slice(-6)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={isConnectingWallet}
+                            onClick={switchMetaMask}
+                            className="text-[10px] font-bold text-emerald-800 hover:text-emerald-950 bg-white px-2.5 py-1 rounded border border-emerald-300 hover:border-emerald-400 shadow-2xs transition-colors cursor-pointer"
+                          >
+                            {isConnectingWallet ? 'Switching...' : 'Switch Account'}
+                          </button>
+                          <span className="text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-800 px-2 py-1 rounded">
+                            Smart Contract Escrow Verified
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {auctionSubNav === "live" && (
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div className="lg:col-span-2 space-y-6">
+                          {arenaAuctionMatch ? (
+                            <div className="bg-[#133c62] text-white rounded-xl shadow-md overflow-hidden p-6 border border-[#1b4e7e]">
+                              <div className="flex justify-between items-start gap-4">
+                                <h3 className="font-extrabold text-sm md:text-base">
+                                  {arenaAuctionMatch.id} - {arenaAuctionMatch.title}
+                                </h3>
 
                             <div className="flex gap-1">
                               {["03", "04", "02", "05"].map((num, idx) => (
@@ -1847,6 +2003,8 @@ export default function DashboardPage() {
             )}
           </>
         )}
+      </>
+    )}
 
         {/* ========================================================= */}
         {/* ===================== LIVE TENDERS ====================== */}

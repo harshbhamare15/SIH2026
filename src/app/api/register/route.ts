@@ -13,6 +13,9 @@ export async function POST(req: NextRequest) {
       email,
       mobile,
       password,
+      role = 'contractor',
+      walletAddress,
+      deviceFingerprint,
       orgType,
       orgName,
       pan,
@@ -31,6 +34,22 @@ export async function POST(req: NextRequest) {
     if (!fullName || !email || !mobile || !password || !orgType || !orgName || !pan || !address1 || !city || !state || !district || !pincode || !country) {
       return NextResponse.json(
         { error: 'Missing required registration fields' },
+        { status: 400 }
+      );
+    }
+
+    // Normalize role to support 'contractor', 'buyer', or 'both'
+    const normalizedRole = (role === 'both' || role === 'contractor,buyer' || role === 'buyer,contractor')
+      ? 'both'
+      : role === 'buyer'
+      ? 'buyer'
+      : 'contractor';
+
+    // If registering with buyer capability, validate wallet address for Ganache transactions
+    const hasBuyerCapability = normalizedRole === 'buyer' || normalizedRole === 'both';
+    if (hasBuyerCapability && (!walletAddress || !walletAddress.trim().startsWith('0x'))) {
+      return NextResponse.json(
+        { error: 'A valid MetaMask wallet address is required when registering with Buyer capability for Ganache network escrow transactions.' },
         { status: 400 }
       );
     }
@@ -59,6 +78,12 @@ export async function POST(req: NextRequest) {
     const resolvedCountry = country.trim();
     const formattedAddress = address?.trim() || [address1, address2, city, state, district, pincode, resolvedCountry].filter(Boolean).join(', ');
 
+    // Resolved device fingerprint for contractor encryption
+    const hasContractorCapability = normalizedRole === 'contractor' || normalizedRole === 'both';
+    const resolvedFingerprint = hasContractorCapability
+      ? (deviceFingerprint ? deviceFingerprint.trim() : null)
+      : (deviceFingerprint ? deviceFingerprint.trim() : null);
+
     // Insert user into MySQL database
     const insertQuery = `
       INSERT INTO users (
@@ -66,6 +91,9 @@ export async function POST(req: NextRequest) {
         email,
         mobile,
         password,
+        role,
+        walletAddress,
+        deviceFingerprint,
         orgType,
         orgName,
         pan,
@@ -78,7 +106,7 @@ export async function POST(req: NextRequest) {
         pincode,
         country,
         address
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const [result] = await db.query<ResultSetHeader>(insertQuery, [
@@ -86,6 +114,9 @@ export async function POST(req: NextRequest) {
       normalizedEmail,
       mobile.trim(),
       hashedPassword,
+      normalizedRole,
+      walletAddress ? walletAddress.trim() : null,
+      resolvedFingerprint,
       orgType.trim(),
       orgName.trim(),
       pan.trim().toUpperCase(),
@@ -105,6 +136,9 @@ export async function POST(req: NextRequest) {
       fullName: fullName.trim(),
       email: normalizedEmail,
       mobile: mobile.trim(),
+      role: normalizedRole,
+      walletAddress: walletAddress ? walletAddress.trim() : null,
+      deviceFingerprint: resolvedFingerprint,
       orgType: orgType.trim(),
       orgName: orgName.trim(),
       pan: pan.trim().toUpperCase(),
