@@ -510,7 +510,7 @@ export default function DashboardPage() {
     const exp = new Date(auction.settlementExpiresAt).getTime();
     const diff = exp - now;
     if (diff <= 0) {
-      return { isExpired: true, isPaid: false, text: 'Settlement Window Expired', formatted: '00:00' };
+      return { isExpired: true, isPaid: false, text: '⚠️ Settlement Window Expired (No ETH Received)', formatted: '00:00' };
     }
     const totalSecs = Math.floor(diff / 1000);
     const mins = Math.floor(totalSecs / 60);
@@ -2556,25 +2556,32 @@ export default function DashboardPage() {
                                     {/* Action Buttons */}
                                     <div className="space-y-2 pt-2 border-t border-slate-100">
                                       {!isPaid ? (
-                                        <button
-                                          type="button"
-                                          onClick={() => handleMetaMaskSettlement(item)}
-                                          disabled={isSettlingPayment === item.id}
-                                          className="w-full py-3 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-800 text-white rounded-xl font-bold text-xs transition-all cursor-pointer shadow-md flex items-center justify-center gap-2"
-                                        >
-                                          {isSettlingPayment === item.id ? (
-                                            <>
-                                              <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                                              <span>Processing MetaMask Transaction...</span>
-                                            </>
-                                          ) : (
-                                            <>
-                                              <span>🦊</span>
-                                              <span>Pay via MetaMask ({ethPrice})</span>
-                                              <span>→</span>
-                                            </>
-                                          )}
-                                        </button>
+                                        settlementCountdown.isExpired ? (
+                                          <div className="w-full py-2.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl font-bold text-xs text-center flex items-center justify-center gap-1.5 shadow-2xs">
+                                            <span>⚠️</span>
+                                            <span>Settlement Window Expired (No Payment Received)</span>
+                                          </div>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleMetaMaskSettlement(item)}
+                                            disabled={isSettlingPayment === item.id}
+                                            className="w-full py-3 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 hover:from-amber-600 hover:to-amber-800 text-white rounded-xl font-bold text-xs transition-all cursor-pointer shadow-md flex items-center justify-center gap-2"
+                                          >
+                                            {isSettlingPayment === item.id ? (
+                                              <>
+                                                <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                                <span>Processing MetaMask Transaction...</span>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <span>🦊</span>
+                                                <span>Pay via MetaMask ({ethPrice})</span>
+                                                <span>→</span>
+                                              </>
+                                            )}
+                                          </button>
+                                        )
                                       ) : (
                                         <button
                                           type="button"

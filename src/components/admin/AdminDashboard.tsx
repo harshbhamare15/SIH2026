@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import FooterSimple from '@/components/FooterSimple';
 
@@ -85,6 +85,8 @@ export default function AdminDashboard() {
   // Live Countdown & Timelock Engine State
   const [now, setNow] = useState(Date.now());
   const [tenderDeadlines, setTenderDeadlines] = useState<Record<string, number>>({});
+  const [auctionDeadlines, setAuctionDeadlines] = useState<Record<string, number>>({});
+  const autoConcludingRef = useRef<Set<string>>(new Set());
 
   // Form Coordinates for Adding Tenders
   const [tenderId, setTenderId] = useState('');
@@ -327,6 +329,18 @@ export default function AdminDashboard() {
     }, 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Auto-conclude auctions when timer reaches 0
+  useEffect(() => {
+    auctions.forEach(a => {
+      if (a.status === 'Live') {
+        const countdown = getAuctionCountdown(a);
+        if (countdown.isExpired) {
+          autoConcludeAuction(a.id, true);
+        }
+      }
+    });
+  }, [now, auctions]);
 
   // Countdown resolver for any tender
   const getTenderCountdown = (t: Tender) => {
@@ -692,6 +706,116 @@ export default function AdminDashboard() {
     }
   };
 
+  // Parse auction duration string into total seconds
+  const parseDurationInSeconds = (durationStr?: string): number => {
+    if (!durationStr) return 300;
+    const minsMatch = durationStr.match(/(\d+)\s*m/i);
+    const secsMatch = durationStr.match(/(\d+)\s*s/i);
+    const hoursMatch = durationStr.match(/(\d+)\s*h/i);
+    const daysMatch = durationStr.match(/(\d+)\s*d/i);
+
+    let secs = 0;
+    if (daysMatch) secs += parseInt(daysMatch[1], 10) * 86400;
+    if (hoursMatch) secs += parseInt(hoursMatch[1], 10) * 3600;
+    if (minsMatch) secs += parseInt(minsMatch[1], 10) * 60;
+    if (secsMatch) secs += parseInt(secsMatch[1], 10);
+
+    if (secs === 0 && durationStr.includes(':')) {
+      const parts = durationStr.split(':').map(p => parseInt(p.replace(/\D/g, ''), 10) || 0);
+      if (parts.length === 2) {
+        secs = parts[0] * 60 + parts[1];
+      } else if (parts.length === 3) {
+        secs = parts[0] * 3600 + parts[1] * 60 + parts[2];
+      }
+    }
+
+    return secs > 0 ? secs : 300;
+  };
+
+  // Dynamic live countdown calculator for active auctions
+  const getAuctionCountdown = (a: Auction) => {
+    if (a.status === 'CONCLUDED' || a.status === 'AWARDED' || a.status === 'SETTLED') {
+      return { isExpired: true, formatted: '00:00 (Concluded)', totalSecs: 0 };
+    }
+
+    let targetEpoch = 0;
+    if (a.endsAt) {
+      targetEpoch = new Date(a.endsAt).getTime();
+    } else if (auctionDeadlines[a.id]) {
+      targetEpoch = auctionDeadlines[a.id];
+    } else {
+      const secs = parseDurationInSeconds(a.duration);
+      targetEpoch = Date.now() + secs * 1000;
+    }
+
+    const diff = targetEpoch - now;
+    if (diff <= 0) {
+      return { isExpired: true, formatted: '00:00 (Expired)', totalSecs: 0 };
+    }
+
+    const totalSecs = Math.floor(diff / 1000);
+    const mins = Math.floor(totalSecs / 60);
+    const secs = totalSecs % 60;
+    const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')} mins`;
+
+    return { isExpired: false, formatted, totalSecs };
+  };
+
+  // Auto-conclude auction handler when timer hits 0
+  const autoConcludeAuction = async (auctionId: string, isSilent: boolean = false) => {
+    if (autoConcludingRef.current.has(auctionId)) return;
+    autoConcludingRef.current.add(auctionId);
+
+    try {
+      setIsConcludingAuction(true);
+      const res = await fetch('/api/auctions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          auctionId,
+          action: 'conclude',
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.auction) {
+        const updated = auctions.map(a => (a.id === auctionId ? { ...a, ...data.auction } : a));
+        setAuctions(updated);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('user-auctions', JSON.stringify(updated));
+        }
+        if (selectedLiveAuction && selectedLiveAuction.id === auctionId) {
+          setSelectedLiveAuction(prev => (prev ? { ...prev, ...data.auction } : null));
+        }
+        fetchLiveAuctionBids(auctionId);
+        if (!isSilent) {
+          alert(`🏆 Auction ${auctionId} Auto-Concluded & Contract Awarded!\n\nWinner: ${data.auction.winnerName || 'H1 Leading Bidder'}\nAmount: ${data.auction.winnerAmount} (${data.auction.winnerEthAmount})\n\n20-minute settlement window is now open for MetaMask payment.`);
+        }
+      }
+    } catch (err) {
+      console.error('Auto conclude auction error:', err);
+    } finally {
+      setIsConcludingAuction(false);
+    }
+  };
+
+  // Fast-Forward Option: Bring timer immediately to 0 and auto-conclude
+  const handleFastForwardAuctionTimer = async (auctionId: string) => {
+    const expiredEpoch = Date.now() - 1000;
+    const expiredIso = new Date(expiredEpoch).toISOString();
+
+    setAuctionDeadlines(prev => ({ ...prev, [auctionId]: expiredEpoch }));
+    setAuctions(prev =>
+      prev.map(a => (a.id === auctionId ? { ...a, endsAt: expiredIso, duration: '00:00 mins (Expired)' } : a))
+    );
+    if (selectedLiveAuction && selectedLiveAuction.id === auctionId) {
+      setSelectedLiveAuction(prev => (prev ? { ...prev, endsAt: expiredIso, duration: '00:00 mins (Expired)' } : null));
+    }
+
+    autoConcludingRef.current.delete(auctionId);
+    await autoConcludeAuction(auctionId, false);
+  };
+
   // Conclude Auction & Open 20-Min Settlement Window Handler
   const handleConcludeAuction = async (auctionId: string) => {
     if (!confirm(`Are you sure you want to conclude Auction "${auctionId}" now?\n\nThis will lock the current H1 leading bidder as the winner and open the 20-minute MetaMask ETH settlement window.`)) return;
@@ -745,7 +869,7 @@ export default function AdminDashboard() {
     const diff = expTime - now;
 
     if (diff <= 0) {
-      return { isExpired: true, isPaid: false, text: 'Settlement Window Expired', formatted: '00:00' };
+      return { isExpired: true, isPaid: false, text: '⚠️ Payment Default: No ETH Received in 20m', formatted: 'NO PAYMENT RECEIVED' };
     }
 
     const totalSecs = Math.floor(diff / 1000);
@@ -1271,9 +1395,17 @@ export default function AdminDashboard() {
                               {a.winnerEthAmount || '0.0004 ETH'}
                             </span>
                             <span className={`text-[10px] px-2 py-0.5 rounded-full font-sans font-bold ${
-                              a.settlementStatus === 'PAID' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-200 text-amber-900 animate-pulse'
+                              a.settlementStatus === 'PAID'
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : getAuctionSettlementCountdown(a).isExpired
+                                ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                                : 'bg-amber-200 text-amber-900 border border-amber-300 animate-pulse'
                             }`}>
-                              {a.settlementStatus === 'PAID' ? '✓ Paid' : getAuctionSettlementCountdown(a).formatted}
+                              {a.settlementStatus === 'PAID'
+                                ? '✓ Paid'
+                                : getAuctionSettlementCountdown(a).isExpired
+                                ? '⚠️ No Payment Received'
+                                : getAuctionSettlementCountdown(a).formatted}
                             </span>
                           </div>
                         </div>
@@ -1282,7 +1414,15 @@ export default function AdminDashboard() {
                       {/* Footer */}
                       <div className="flex flex-wrap justify-between items-center border-t border-slate-100 pt-3 gap-2.5 text-xs">
                         <div className="flex items-center gap-2">
-                          <span className="text-slate-500 font-medium">Closes in: <span className="font-bold text-[#1b4e7e]">{a.duration}</span></span>
+                          {a.status === 'Live' ? (
+                            <span className="text-slate-500 font-medium">
+                              Closes in: <span className="font-bold text-[#1b4e7e] font-mono">{getAuctionCountdown(a).formatted}</span>
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 font-bold text-[11px]">
+                              Cycle Concluded
+                            </span>
+                          )}
                           <span className="px-2 py-0.5 rounded bg-blue-50 text-[#1b4e7e] font-bold text-[10px] border border-blue-100 flex items-center gap-1">
                             <svg className="w-3 h-3 text-[#1b4e7e]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
@@ -1292,11 +1432,11 @@ export default function AdminDashboard() {
                             <span>{auctionBidCounts[a.id]?.totalBids || 0} Bids</span>
                           </span>
                         </div>
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => setSelectedLiveAuction(a)}
-                            className="px-3.5 py-1.5 bg-[#1b4e7e] hover:bg-[#133c62] text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                            className="px-3 py-1.5 bg-[#1b4e7e] hover:bg-[#133c62] text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
                           >
                             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                             <span>Live Track & Bids Room</span>
@@ -1864,6 +2004,12 @@ export default function AdminDashboard() {
                     <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span>
                     LIVE SOCKET FEED
                   </span>
+                  {selectedLiveAuction.status === 'Live' && (
+                    <span className="bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1.5 font-mono">
+                      <span>⏱️</span>
+                      <span>Closes in: <strong>{getAuctionCountdown(selectedLiveAuction).formatted}</strong></span>
+                    </span>
+                  )}
                   <span className="text-white/60 text-[11px] font-mono">
                     Auto-polling (2.5s)
                   </span>
@@ -1876,6 +2022,9 @@ export default function AdminDashboard() {
                   <span className="font-mono bg-white/10 px-2 py-0.5 rounded">ID: {selectedLiveAuction.id}</span>
                   <span>Agency: <strong className="text-white">{selectedLiveAuction.client}</strong></span>
                   <span>Location: <strong className="text-white">{selectedLiveAuction.location}</strong></span>
+                  {selectedLiveAuction.status === 'Live' && (
+                    <span>Timer: <strong className="text-amber-300 font-mono">{getAuctionCountdown(selectedLiveAuction).formatted}</strong></span>
+                  )}
                 </div>
               </div>
 
@@ -1906,70 +2055,51 @@ export default function AdminDashboard() {
             {/* Scrollable Content Body */}
             <div className="p-6 overflow-y-auto space-y-6 flex-1 bg-slate-50/50">
               
-              {/* Concluded / Settlement Status Banner */}
+              {/* Concluded / Settlement Minimal Bar */}
               {(selectedLiveAuction.status === 'CONCLUDED' || selectedLiveAuction.status === 'SETTLED' || liveAuctionData?.auction?.status === 'CONCLUDED' || liveAuctionData?.auction?.status === 'SETTLED') && (
-                <div className="bg-gradient-to-r from-amber-500/10 via-amber-400/15 to-emerald-500/10 border-2 border-amber-300 rounded-2xl p-5 shadow-xs space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200/80 pb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xl">🏆</span>
-                      <div>
-                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 block">
-                          AUCTION CONCLUDED &amp; CONTRACT AWARDED
-                        </span>
-                        <h4 className="text-base font-black text-slate-900">
-                          Winner: {selectedLiveAuction.winnerName || liveAuctionData?.auction?.winnerName || liveAuctionData?.stats?.leadingBidder?.bidderName || 'Leading Contractor'}
-                        </h4>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-slate-600">Settlement Status:</span>
-                      {(selectedLiveAuction.settlementStatus === 'PAID' || liveAuctionData?.auction?.settlementStatus === 'PAID') ? (
-                        <span className="px-3 py-1 bg-emerald-600 text-white font-black text-xs rounded-full shadow-2xs flex items-center gap-1.5">
-                          <span>✓</span>
-                          <span>PAID ON-CHAIN VIA METAMASK</span>
-                        </span>
-                      ) : (
-                        <span className="px-3 py-1 bg-amber-500 text-white font-black text-xs rounded-full shadow-2xs flex items-center gap-1.5 animate-pulse">
-                          <span>⏱️</span>
-                          <span>20-MIN SETTLEMENT WINDOW OPEN</span>
-                        </span>
-                      )}
+                <div className={`border rounded-xl p-3 text-xs flex flex-wrap items-center justify-between gap-3 shadow-2xs ${
+                  (selectedLiveAuction.settlementStatus === 'PAID' || liveAuctionData?.auction?.settlementStatus === 'PAID')
+                    ? 'bg-emerald-50 border-emerald-200'
+                    : getAuctionSettlementCountdown(selectedLiveAuction).isExpired
+                    ? 'bg-rose-50 border-rose-200'
+                    : 'bg-amber-50 border-amber-200'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">
+                      {(selectedLiveAuction.settlementStatus === 'PAID' || liveAuctionData?.auction?.settlementStatus === 'PAID')
+                        ? '🏆'
+                        : getAuctionSettlementCountdown(selectedLiveAuction).isExpired
+                        ? '⚠️'
+                        : '🏆'}
+                    </span>
+                    <div>
+                      <span className="font-bold text-slate-800">
+                        Winner: {selectedLiveAuction.winnerName || liveAuctionData?.auction?.winnerName || liveAuctionData?.stats?.leadingBidder?.bidderName || 'Leading Contractor'}
+                      </span>
+                      <span className="text-emerald-700 font-mono font-bold ml-2">
+                        {selectedLiveAuction.winnerAmount || `₹${(liveAuctionData?.stats?.currentHighestBid || selectedLiveAuction.lowestBid || 0).toLocaleString()}`}
+                      </span>
+                      <span className="text-slate-500 font-mono text-[11px] ml-1">
+                        ({selectedLiveAuction.winnerEthAmount || liveAuctionData?.auction?.winnerEthAmount || '0.0004 ETH'})
+                      </span>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                    <div className="bg-white/80 border border-amber-200 rounded-xl p-3">
-                      <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Winning Bid Value</span>
-                      <div className="text-lg font-black text-emerald-700 font-mono mt-0.5">
-                        {selectedLiveAuction.winnerAmount || `₹${(liveAuctionData?.stats?.currentHighestBid || selectedLiveAuction.lowestBid || 0).toLocaleString()}`}
-                      </div>
-                      <span className="text-[11px] text-amber-800 font-mono font-bold">
-                        ≈ {selectedLiveAuction.winnerEthAmount || liveAuctionData?.auction?.winnerEthAmount || '0.0004 ETH'}
-                      </span>
-                    </div>
-
-                    <div className="bg-white/80 border border-amber-200 rounded-xl p-3">
-                      <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Receiving Admin Wallet</span>
-                      <div className="text-xs font-bold text-slate-800 font-mono mt-1 truncate" title={selectedLiveAuction.adminWalletAddress || '0x71C2B9A23E45Fc49A109D90d0bFd5B59e99284F7'}>
-                        {selectedLiveAuction.adminWalletAddress || '0x71C2B9A23E45Fc49A109D90d0bFd5B59e99284F7'}
-                      </div>
-                      <span className="text-[10px] text-emerald-700 font-semibold block mt-0.5">
-                        Verified Receiver Treasury
-                      </span>
-                    </div>
-
-                    <div className="bg-white/80 border border-amber-200 rounded-xl p-3">
-                      <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Settlement Timer (20 Mins)</span>
-                      <div className="text-lg font-black font-mono mt-0.5 text-amber-900">
-                        {getAuctionSettlementCountdown(selectedLiveAuction).text}
-                      </div>
-                      {(selectedLiveAuction.settlementTxHash || liveAuctionData?.auction?.settlementTxHash) && (
-                        <span className="text-[10px] text-slate-500 font-mono block mt-0.5 truncate">
-                          Tx: {selectedLiveAuction.settlementTxHash || liveAuctionData?.auction?.settlementTxHash}
-                        </span>
-                      )}
-                    </div>
+                  <div className="flex items-center gap-2 font-mono font-bold text-[11px]">
+                    <span className="text-slate-500">Settlement Status:</span>
+                    <span className={`px-2.5 py-0.5 rounded-full font-sans ${
+                      (selectedLiveAuction.settlementStatus === 'PAID' || liveAuctionData?.auction?.settlementStatus === 'PAID')
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                        : getAuctionSettlementCountdown(selectedLiveAuction).isExpired
+                        ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                        : 'bg-amber-200 text-amber-900 border border-amber-300 animate-pulse'
+                    }`}>
+                      {(selectedLiveAuction.settlementStatus === 'PAID' || liveAuctionData?.auction?.settlementStatus === 'PAID')
+                        ? '✓ Paid On-Chain'
+                        : getAuctionSettlementCountdown(selectedLiveAuction).isExpired
+                        ? '⚠️ No Payment Received (Window Expired)'
+                        : `${getAuctionSettlementCountdown(selectedLiveAuction).formatted} remaining`}
+                    </span>
                   </div>
                 </div>
               )}
