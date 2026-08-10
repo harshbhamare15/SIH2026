@@ -589,32 +589,32 @@ export default function DashboardPage() {
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  const isTenderClosed = (tender: TenderItem) => {
-    if (tender.tenderStatus === 'AWARDED') return true;
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem('axiom_tender_deadlines');
-      if (saved) {
-        try {
-          const map = JSON.parse(saved);
-          if (map[tender.id] && Date.now() >= map[tender.id]) {
-            return true;
-          }
-        } catch {}
-      }
+  function isTenderClosed(tender: TenderItem) {
+  if (tender.tenderStatus === 'AWARDED') return true;
+  if (typeof window !== "undefined") {
+    const saved = localStorage.getItem('axiom_tender_deadlines');
+    if (saved) {
+      try {
+        const map = JSON.parse(saved);
+        if (map[tender.id] && Date.now() >= map[tender.id]) {
+          return true;
+        }
+      } catch {}
     }
-    const str = (tender.deadline || tender.closingDate || '').toLowerCase().trim();
-    if (
-      str.includes('closed') ||
-      str.includes('ended') ||
-      str.includes('expired') ||
-      str === '00d : 00h : 00m : 00s' ||
-      str === '00h : 00m : 00s' ||
-      str === '00:00:00'
-    ) {
-      return true;
-    }
-    return false;
-  };
+  }
+  const str = (tender.deadline || tender.closingDate || '').toLowerCase().trim();
+  if (
+    str.includes('closed') ||
+    str.includes('ended') ||
+    str.includes('expired') ||
+    str === '00d : 00h : 00m : 00s' ||
+    str === '00h : 00m : 00s' ||
+    str === '00:00:00'
+  ) {
+    return true;
+  }
+  return false;
+}
 
   // Real-time ticker to update tender countdowns and detect expired submission windows
   useEffect(() => {
@@ -1118,7 +1118,7 @@ export default function DashboardPage() {
   }
 
   if (activeSubNav === "live") {
-    baseTenders = tendersWithDistance.filter((t) => t.tenderStatus !== "AWARDED" && t.status === "active");
+    baseTenders = tendersWithDistance.filter((t) => t.tenderStatus !== "AWARDED" && t.status === "active" && !isTenderClosed(t));
   }
 
   const filteredTenders = baseTenders
