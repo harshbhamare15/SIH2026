@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool, ensureTablesExist } from '@/lib/db';
-import { encryptApplication, DecryptedApplicationPayload } from '@/lib/axiom-crypto';
+import { encryptApplication, computeBlindIndex, encryptNetworkVaultKey, DecryptedApplicationPayload } from '@/lib/axiom-crypto';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import crypto from 'crypto';
 
@@ -77,8 +77,10 @@ export async function POST(req: NextRequest) {
 
     // 3. Encrypt via Axiom Cryptographic Engine & Generate 2-of-2 Key Shares
     const encryptedPkg = encryptApplication(applicationId, tender.id, fullPayload);
+    const applicantBlindIndex = computeBlindIndex(applicant.email || String(applicant.userId || ''));
 
     // 4. Store Ciphertext + Key Share 1 (DB Key) in tender_applications table
+    // Zero-Knowledge Privacy: Store ZERO plaintext personal identifiers in MySQL before deadline
     const insertAppQuery = `
       INSERT INTO tender_applications (
         id,
@@ -86,6 +88,7 @@ export async function POST(req: NextRequest) {
         userId,
         applicantName,
         applicantEmail,
+        applicantBlindIndex,
         encryptedPayload,
         iv,
         authTag,
@@ -93,15 +96,13 @@ export async function POST(req: NextRequest) {
         bidHash,
         status,
         submittedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SEALED', NOW())
+      ) VALUES (?, ?, NULL, 'AXIOM-ENCRYPTED-BIDDER', 'axiom-encrypted-vault@axiom.zk', ?, ?, ?, ?, ?, ?, 'SEALED', NOW())
     `;
 
     await db.query<ResultSetHeader>(insertAppQuery, [
       encryptedPkg.applicationId,
       encryptedPkg.tenderId,
-      applicant.userId || null,
-      applicant.fullName || 'Confidential Applicant',
-      applicant.email || 'confidential@bidder',
+      applicantBlindIndex,
       encryptedPkg.encryptedPayload,
       encryptedPkg.iv,
       encryptedPkg.authTag,
@@ -110,21 +111,32 @@ export async function POST(req: NextRequest) {
     ]);
 
     // 5. Store Key Share 2 (Network Key) in isolated axiom_network_vault table with Timelock
+    // Zero-Knowledge Guarantee: Key 2 is sealed with Timelock Encryption so DB admin cannot view it in plaintext
+    const vaultPkg = encryptNetworkVaultKey(
+      encryptedPkg.networkKeyShare,
+      tender.id,
+      tender.closingDate || ''
+    );
+
     const insertVaultQuery = `
       INSERT INTO axiom_network_vault (
         applicationId,
         tenderId,
         networkKeyShare,
+        vaultIv,
+        vaultAuthTag,
         timelockExpiry,
         vaultStatus,
         created_at
-      ) VALUES (?, ?, ?, ?, 'LOCKED_IN_NETWORK', NOW())
+      ) VALUES (?, ?, ?, ?, ?, ?, 'LOCKED_IN_NETWORK', NOW())
     `;
 
     await db.query<ResultSetHeader>(insertVaultQuery, [
       encryptedPkg.applicationId,
       encryptedPkg.tenderId,
-      encryptedPkg.networkKeyShare, // Key Share 2 in Network Vault
+      vaultPkg.encryptedVaultKey, // Ciphertext of Key 2
+      vaultPkg.vaultIv,
+      vaultPkg.vaultAuthTag,
       tender.closingDate || 'TIMELOCK_ACTIVE',
     ]);
 

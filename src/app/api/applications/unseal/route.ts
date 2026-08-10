@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool, ensureTablesExist } from '@/lib/db';
-import { decryptApplication, isTenderDeadlinePassed } from '@/lib/axiom-crypto';
+import { decryptApplication, isTenderDeadlinePassed, decryptNetworkVaultKey } from '@/lib/axiom-crypto';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { tenderId, forceUnseal } = body;
+    const { tenderId, forceUnseal = false } = body;
 
     if (!tenderId) {
       return NextResponse.json(
-        { error: 'Tender ID is required to execute unseal sequence' },
+        { error: 'Tender ID is required' },
         { status: 400 }
       );
     }
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     await ensureTablesExist();
     const db = getPool();
 
-    // 1. Fetch Tender
+    // 1. Fetch tender details & verify timelock
     const [tenders] = await db.query<RowDataPacket[]>(
       'SELECT id, title, closingDate FROM tenders WHERE id = ? LIMIT 1',
       [tenderId.trim()]
@@ -32,15 +32,15 @@ export async function POST(req: NextRequest) {
     }
 
     const tender = tenders[0];
-    const isPassed = isTenderDeadlinePassed(tender.closingDate) || Boolean(forceUnseal);
+    const isPassed = isTenderDeadlinePassed(tender.closingDate) || forceUnseal;
 
     if (!isPassed) {
       return NextResponse.json(
-        {
-          error: 'Cannot unseal applications before the tender submission deadline has expired.',
+        { 
+          error: 'Timelock Active: Bids are sealed in the 2-of-2 Axiom Vault and cannot be unsealed before the tender deadline.',
           tenderId: tender.id,
           closingDate: tender.closingDate,
-          isDeadlinePassed: false,
+          status: 'SEALED_VAULT_LOCKED'
         },
         { status: 403 }
       );
@@ -60,7 +60,11 @@ export async function POST(req: NextRequest) {
         a.bidHash,
         a.status,
         a.submittedAt,
-        v.networkKeyShare
+        v.networkKeyShare,
+        v.vaultIv,
+        v.vaultAuthTag,
+        v.timelockExpiry,
+        v.vaultStatus
       FROM tender_applications a
       JOIN axiom_network_vault v ON a.id = v.applicationId
       WHERE a.tenderId = ?
@@ -70,18 +74,41 @@ export async function POST(req: NextRequest) {
 
     for (const app of apps) {
       try {
+        // 1. Decrypt Key 2 from Timelock Network Vault
+        let rawNetworkKey = app.networkKeyShare;
+        if (app.vaultIv && app.vaultAuthTag) {
+          try {
+            rawNetworkKey = decryptNetworkVaultKey(
+              app.networkKeyShare,
+              app.vaultIv,
+              app.vaultAuthTag,
+              tender.id,
+              app.timelockExpiry || tender.closingDate,
+              true
+            );
+          } catch {
+            rawNetworkKey = app.networkKeyShare;
+          }
+        }
+
+        // 2. Recombine Key 1 (DB) + Key 2 (Network) to Decrypt Application
         const decryptedPayload = decryptApplication(
           app.encryptedPayload,
           app.iv,
           app.authTag,
           app.dbKeyShare,
-          app.networkKeyShare
+          rawNetworkKey
         );
 
-        // Update status in DB to UNSEALED only if currently SEALED
+        // Update status and decrypted applicant credentials in DB upon unseal
         await db.query<ResultSetHeader>(
-          'UPDATE tender_applications SET status = CASE WHEN status IN ("AWARDED", "REJECTED") THEN status ELSE "UNSEALED" END, unsealedAt = IFNULL(unsealedAt, NOW()) WHERE id = ?',
-          [app.applicationId]
+          'UPDATE tender_applications SET applicantName = ?, applicantEmail = ?, userId = ?, status = CASE WHEN status IN ("AWARDED", "REJECTED") THEN status ELSE "UNSEALED" END, unsealedAt = IFNULL(unsealedAt, NOW()) WHERE id = ?',
+          [
+            decryptedPayload.applicant.fullName || 'Verified Applicant',
+            decryptedPayload.applicant.email || '',
+            decryptedPayload.applicant.userId || null,
+            app.applicationId
+          ]
         );
 
         await db.query<ResultSetHeader>(
@@ -92,8 +119,8 @@ export async function POST(req: NextRequest) {
         decryptedList.push({
           applicationId: app.applicationId,
           tenderId: app.tenderId,
-          applicantName: app.applicantName,
-          applicantEmail: app.applicantEmail,
+          applicantName: decryptedPayload.applicant.fullName,
+          applicantEmail: decryptedPayload.applicant.email,
           bidHash: app.bidHash,
           submittedAt: app.submittedAt,
           payload: decryptedPayload,
@@ -104,6 +131,12 @@ export async function POST(req: NextRequest) {
         console.error(`Error unsealing application ${app.applicationId}:`, e);
       }
     }
+
+    // Persist closed deadline in tenders table
+    await db.query<ResultSetHeader>(
+      'UPDATE tenders SET closingDate = "00d : 00h : 00m : 00s" WHERE id = ?',
+      [tender.id]
+    );
 
     const [latestTenders] = await db.query<RowDataPacket[]>(
       'SELECT id, title, client, location, value, closingDate, matchType, status, winnerApplicantId, winnerName, winnerOrg, winnerAmount, awardedAt FROM tenders WHERE id = ? LIMIT 1',

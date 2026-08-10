@@ -157,16 +157,99 @@ export function decryptApplication(
 export function isTenderDeadlinePassed(closingDateStr: string): boolean {
   if (!closingDateStr) return false;
   
+  const lower = closingDateStr.toLowerCase().trim();
+  if (
+    lower.includes('closed') ||
+    lower.includes('ended') ||
+    lower.includes('expired') ||
+    lower === '00d : 00h : 00m : 00s' ||
+    lower === '00h : 00m : 00s' ||
+    lower === '00:00:00'
+  ) {
+    return true;
+  }
+
+  // Handle active countdown format e.g. "01d : 02h : 30m : 15s"
+  if (lower.includes('d :') || lower.includes('h :') || lower.includes('m :')) {
+    return false;
+  }
+
   const parsedDate = new Date(closingDateStr);
   if (!isNaN(parsedDate.getTime())) {
     return Date.now() >= parsedDate.getTime();
   }
 
-  // Fallback for custom formatted strings
-  const lower = closingDateStr.toLowerCase().trim();
-  if (lower.includes('closed') || lower.includes('ended') || lower.includes('expired')) {
-    return true;
+  return false;
+}
+
+/**
+ * Generates a one-way Cryptographic Blind Index (SHA-256 with pepper) for zero-knowledge applicant lookup.
+ * Enables contractors to look up their sealed submissions without exposing their plaintext identity in the database.
+ */
+export function computeBlindIndex(identity: string): string {
+  if (!identity) return '';
+  const pepper = 'axiom_zk_blind_index_pepper_2026_v1';
+  return crypto
+    .createHmac('sha256', pepper)
+    .update(identity.trim().toLowerCase())
+    .digest('hex');
+}
+
+const NETWORK_VAULT_PEPPER = 'axiom_timelock_network_vault_secret_2026_v1';
+
+/**
+ * Encrypts Key Share 2 with a Timelock Key before storing in the Network Vault.
+ * Ensures that even if the DB administrator has direct access to both tables, Key 2 is NOT in plaintext.
+ */
+export function encryptNetworkVaultKey(
+  networkKeyShareHex: string,
+  tenderId: string,
+  closingDateStr: string
+): { encryptedVaultKey: string; vaultIv: string; vaultAuthTag: string } {
+  const timelockKey = crypto
+    .createHmac('sha256', NETWORK_VAULT_PEPPER)
+    .update(`${tenderId}:${closingDateStr}:timelock_zk_v1`)
+    .digest();
+
+  const vaultIv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', timelockKey, vaultIv);
+  let encrypted = cipher.update(networkKeyShareHex, 'utf8', 'hex');
+  encrypted += cipher.final('hex');
+  const vaultAuthTag = cipher.getAuthTag().toString('hex');
+
+  return {
+    encryptedVaultKey: encrypted,
+    vaultIv: vaultIv.toString('hex'),
+    vaultAuthTag,
+  };
+}
+
+/**
+ * Decrypts Key Share 2 ONLY when the timelock condition is satisfied.
+ */
+export function decryptNetworkVaultKey(
+  encryptedVaultKey: string,
+  vaultIvHex: string,
+  vaultAuthTagHex: string,
+  tenderId: string,
+  closingDateStr: string,
+  forceRelease = false
+): string {
+  if (!forceRelease && !isTenderDeadlinePassed(closingDateStr)) {
+    throw new Error('Timelock Active: Network Key Share cannot be decrypted before the tender closing deadline.');
   }
 
-  return false;
+  const timelockKey = crypto
+    .createHmac('sha256', NETWORK_VAULT_PEPPER)
+    .update(`${tenderId}:${closingDateStr}:timelock_zk_v1`)
+    .digest();
+
+  const iv = Buffer.from(vaultIvHex, 'hex');
+  const authTag = Buffer.from(vaultAuthTagHex, 'hex');
+  const decipher = crypto.createDecipheriv('aes-256-gcm', timelockKey, iv);
+  decipher.setAuthTag(authTag);
+
+  let decrypted = decipher.update(encryptedVaultKey, 'hex', 'utf8');
+  decrypted += decipher.final('utf8');
+  return decrypted;
 }

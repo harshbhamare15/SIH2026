@@ -104,34 +104,23 @@ async function runComprehensiveAxiomAudit() {
   // --- 2. LIVE BACKEND API & DATABASE INTEGRATION TESTS ---
   console.log('\n--- Phase 2: Live Backend API & Database Storage Tests ---');
 
-  // Fetch or create available active tender
-  let activeTender = null;
-  const tendersRes = await fetch('http://localhost:3000/api/tenders');
-  const tendersData = await tendersRes.json();
-
-  if (tendersRes.ok && tendersData.tenders && tendersData.tenders.length > 0) {
-    activeTender = tendersData.tenders.find(t => t.status !== 'AWARDED');
-  }
-
-  if (!activeTender) {
-    // Auto-create tender for test
-    const testId = 'TND-AUDIT-' + Date.now();
-    const createTenderRes = await fetch('http://localhost:3000/api/tenders', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: testId,
-        title: 'National Expressway Corridor EPC Procurement',
-        client: 'Ministry of Road Transport & Highways',
-        location: 'Gujarat',
-        value: '₹ 150 Crores',
-        closingDate: '01d : 00h : 00m : 00s',
-        matchType: 'High Match'
-      })
-    });
-    const createData = await createTenderRes.json();
-    activeTender = createData.tender;
-  }
+  // Create an isolated fresh active tender for the test run
+  const testId = 'TND-AUDIT-' + Date.now();
+  const createTenderRes = await fetch('http://localhost:3000/api/tenders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id: testId,
+      title: 'National Expressway Corridor EPC Procurement',
+      client: 'Ministry of Road Transport & Highways',
+      location: 'Gujarat',
+      value: '₹ 150 Crores',
+      closingDate: '01d : 00h : 00m : 00s',
+      matchType: 'High Match'
+    })
+  });
+  const createData = await createTenderRes.json();
+  const activeTender = createData.tender;
 
   assert(activeTender && activeTender.id, 'MySQL database active tender loaded/registered');
   console.log(`  Testing with Active Tender: [ID: ${activeTender.id}] "${activeTender.title}"`);

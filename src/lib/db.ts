@@ -107,6 +107,7 @@ export async function ensureTablesExist(): Promise<void> {
       userId INT NULL,
       applicantName VARCHAR(255) NOT NULL,
       applicantEmail VARCHAR(255) NOT NULL,
+      applicantBlindIndex VARCHAR(64) NULL,
       encryptedPayload LONGTEXT NOT NULL,
       iv VARCHAR(64) NOT NULL,
       authTag VARCHAR(64) NOT NULL,
@@ -116,7 +117,8 @@ export async function ensureTablesExist(): Promise<void> {
       submittedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       unsealedAt TIMESTAMP NULL,
       INDEX idx_app_tender (tenderId),
-      INDEX idx_app_status (status)
+      INDEX idx_app_status (status),
+      INDEX idx_app_blind (applicantBlindIndex)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `;
 
@@ -126,6 +128,8 @@ export async function ensureTablesExist(): Promise<void> {
       applicationId VARCHAR(100) NOT NULL UNIQUE,
       tenderId VARCHAR(100) NOT NULL,
       networkKeyShare VARCHAR(128) NOT NULL,
+      vaultIv VARCHAR(64) NULL,
+      vaultAuthTag VARCHAR(64) NULL,
       timelockExpiry VARCHAR(100) NOT NULL,
       vaultStatus ENUM('LOCKED_IN_NETWORK', 'RELEASED_FOR_DECRYPTION') NOT NULL DEFAULT 'LOCKED_IN_NETWORK',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -144,8 +148,22 @@ export async function ensureTablesExist(): Promise<void> {
   // Safe migrations for tender_applications table
   try {
     await db.query('ALTER TABLE tender_applications MODIFY COLUMN status VARCHAR(50) NOT NULL DEFAULT "SEALED"');
+    const [blindCols] = await db.query<any[]>('SHOW COLUMNS FROM tender_applications LIKE "applicantBlindIndex"');
+    if (!blindCols || blindCols.length === 0) {
+      await db.query('ALTER TABLE tender_applications ADD COLUMN applicantBlindIndex VARCHAR(64) NULL, ADD INDEX idx_app_blind (applicantBlindIndex)');
+    }
   } catch (e) {
     console.error('Column migration error in tender_applications:', e);
+  }
+
+  // Safe migrations for axiom_network_vault table
+  try {
+    const [ivCols] = await db.query<any[]>('SHOW COLUMNS FROM axiom_network_vault LIKE "vaultIv"');
+    if (!ivCols || ivCols.length === 0) {
+      await db.query('ALTER TABLE axiom_network_vault ADD COLUMN vaultIv VARCHAR(64) NULL, ADD COLUMN vaultAuthTag VARCHAR(64) NULL');
+    }
+  } catch (e) {
+    console.error('Column migration error in axiom_network_vault:', e);
   }
 
   // Safe migrations for tenders table

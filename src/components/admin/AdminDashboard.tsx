@@ -230,6 +230,20 @@ export default function AdminDashboard() {
 
   // Countdown resolver for any tender
   const getTenderCountdown = (t: Tender) => {
+    if (t.status === 'AWARDED' || t.closingDate === '00d : 00h : 00m : 00s') {
+      return {
+        isExpired: true,
+        diff: 0,
+        days: '00',
+        hours: '00',
+        mins: '00',
+        secs: '00',
+        text: '00d : 00h : 00m : 00s • Deadline Elapsed',
+        formatted: '00d : 00h : 00m : 00s',
+        badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200'
+      };
+    }
+
     const target = tenderDeadlines[t.id] || (new Date(t.closingDate).getTime() > 0 ? new Date(t.closingDate).getTime() : 0);
     if (!target) return { isExpired: false, text: t.closingDate, diff: 999999, days: '00', hours: '00', mins: '00', secs: '00' };
 
@@ -343,6 +357,18 @@ export default function AdminDashboard() {
         if (!isAuto) {
           alert(`Application Review Window Open\n\n${data.unsealedCount} applications are now available for evaluation.`);
         }
+
+        // Update local deadline map immediately to expire countdown
+        const updatedDeadlines = { ...tenderDeadlines, [tenderId]: Date.now() - 1000 };
+        setTenderDeadlines(updatedDeadlines);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('axiom_tender_deadlines', JSON.stringify(updatedDeadlines));
+        }
+
+        // Update local tenders state closingDate
+        setTenders(prev => prev.map(item => item.id === tenderId ? { ...item, closingDate: '00d : 00h : 00m : 00s' } : item));
+        setSelectedAuditTender(prev => prev && prev.id === tenderId ? { ...prev, closingDate: '00d : 00h : 00m : 00s' } : prev);
+
         fetchTenderApplications(tenderId, true);
         // Refresh summary
         const summaryRes = await fetch('/api/applications');

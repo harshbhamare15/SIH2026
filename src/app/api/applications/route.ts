@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool, ensureTablesExist } from '@/lib/db';
-import { decryptApplication, isTenderDeadlinePassed, DecryptedApplicationPayload } from '@/lib/axiom-crypto';
+import { decryptApplication, isTenderDeadlinePassed, computeBlindIndex, decryptNetworkVaultKey, DecryptedApplicationPayload } from '@/lib/axiom-crypto';
 import { RowDataPacket } from 'mysql2';
 
 export async function GET(req: NextRequest) {
@@ -16,6 +16,7 @@ export async function GET(req: NextRequest) {
 
     // Case 0: Fetch specific contractor user's submitted applications
     if (userEmail || userId) {
+      const blindIndex = computeBlindIndex(userEmail || String(userId || ''));
       const [userApps] = await db.query<RowDataPacket[]>(`
         SELECT 
           a.id AS applicationId,
@@ -30,9 +31,9 @@ export async function GET(req: NextRequest) {
           t.closingDate
         FROM tender_applications a
         JOIN tenders t ON a.tenderId = t.id
-        WHERE a.applicantEmail = ? OR (a.userId IS NOT NULL AND a.userId = ?)
+        WHERE a.applicantBlindIndex = ? OR a.applicantEmail = ? OR (a.userId IS NOT NULL AND a.userId = ?)
         ORDER BY a.submittedAt DESC
-      `, [userEmail || '', userId ? Number(userId) : 0]);
+      `, [blindIndex, userEmail || '', userId ? Number(userId) : 0]);
 
       return NextResponse.json({
         success: true,
@@ -91,7 +92,13 @@ export async function GET(req: NextRequest) {
     }
 
     const tender = tenders[0];
-    const isDeadlinePassed = isTenderDeadlinePassed(tender.closingDate) || forceUnseal || tender.status === 'AWARDED';
+
+    const [unsealStatusCheck] = await db.query<RowDataPacket[]>(
+      'SELECT COUNT(*) as unsealedCount FROM tender_applications WHERE tenderId = ? AND status IN ("UNSEALED", "AWARDED", "REJECTED")',
+      [tender.id]
+    );
+    const hasUnsealedApps = Number(unsealStatusCheck[0]?.unsealedCount || 0) > 0;
+    const isDeadlinePassed = isTenderDeadlinePassed(tender.closingDate) || forceUnseal || tender.status === 'AWARDED' || hasUnsealedApps;
 
     // Fetch applications count
     const [countRows] = await db.query<RowDataPacket[]>(
@@ -132,6 +139,8 @@ export async function GET(req: NextRequest) {
         a.status,
         a.submittedAt,
         v.networkKeyShare,
+        v.vaultIv,
+        v.vaultAuthTag,
         v.timelockExpiry,
         v.vaultStatus
       FROM tender_applications a
@@ -153,19 +162,35 @@ export async function GET(req: NextRequest) {
 
     for (const row of appRows) {
       try {
+        let rawNetworkKey = row.networkKeyShare;
+        if (row.vaultIv && row.vaultAuthTag) {
+          try {
+            rawNetworkKey = decryptNetworkVaultKey(
+              row.networkKeyShare,
+              row.vaultIv,
+              row.vaultAuthTag,
+              tender.id,
+              row.timelockExpiry || tender.closingDate,
+              forceUnseal || isDeadlinePassed
+            );
+          } catch {
+            rawNetworkKey = row.networkKeyShare;
+          }
+        }
+
         const decryptedPayload = decryptApplication(
           row.encryptedPayload,
           row.iv,
           row.authTag,
           row.dbKeyShare,
-          row.networkKeyShare
+          rawNetworkKey
         );
 
         unsealedApplications.push({
           applicationId: row.applicationId,
           tenderId: row.tenderId,
-          applicantName: row.applicantName,
-          applicantEmail: row.applicantEmail,
+          applicantName: decryptedPayload.applicant.fullName,
+          applicantEmail: decryptedPayload.applicant.email,
           bidHash: row.bidHash,
           submittedAt: row.submittedAt,
           payload: decryptedPayload,

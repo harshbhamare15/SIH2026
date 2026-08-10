@@ -1592,7 +1592,7 @@ export default function DashboardPage() {
                       >
                         <div className="space-y-0.5">
                           <span className="text-xs font-bold">
-                            My Active Bids ({activeBidsCount})
+                            My Active Bids
                           </span>
 
                           <p className="text-[10px] text-white/50">
@@ -2358,9 +2358,7 @@ export default function DashboardPage() {
                     <h2 className="text-xl font-black text-slate-900 tracking-tight">
                       Live Bidding Floor
                     </h2>
-                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-extrabold border border-emerald-200">
-                      REAL-TIME
-                    </span>
+                    
                   </div>
                   <p className="text-xs text-slate-500 mt-1">
                     Actively open public procurement tenders accepting encrypted 2-of-2 split-key proposals.
