@@ -536,15 +536,34 @@ export default function DashboardPage() {
         }
       }
 
-      // Load persistent listings
-      const savedTenders = localStorage.getItem("user-tenders");
-      if (savedTenders) {
+      // Load persistent listings from database and cache
+      const loadLiveTenders = async () => {
         try {
-          setTenders(normalizeTenders(JSON.parse(savedTenders)));
-        } catch (e) {
-          console.error(e);
+          const res = await fetch('/api/tenders');
+          const data = await res.json();
+          if (res.ok && Array.isArray(data.tenders) && data.tenders.length > 0) {
+            setTenders(normalizeTenders(data.tenders));
+            localStorage.setItem("user-tenders", JSON.stringify(data.tenders));
+          } else {
+            const savedTenders = localStorage.getItem("user-tenders");
+            if (savedTenders) {
+              setTenders(normalizeTenders(JSON.parse(savedTenders)));
+            }
+          }
+        } catch {
+          const savedTenders = localStorage.getItem("user-tenders");
+          if (savedTenders) {
+            try {
+              setTenders(normalizeTenders(JSON.parse(savedTenders)));
+            } catch (e) {
+              console.error(e);
+            }
+          }
         }
-      }
+      };
+
+      loadLiveTenders();
+
       const savedAuctions = localStorage.getItem("user-auctions");
       if (savedAuctions) {
         try {

@@ -77,7 +77,22 @@ export async function ensureTablesExist(): Promise<void> {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `;
 
+  const createTendersTableQuery = `
+    CREATE TABLE IF NOT EXISTS tenders (
+      id VARCHAR(100) PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      client VARCHAR(255) NOT NULL,
+      location VARCHAR(255) NOT NULL,
+      value VARCHAR(100) NOT NULL,
+      closingDate VARCHAR(100) NOT NULL,
+      matchType VARCHAR(50) NOT NULL DEFAULT 'High Match',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `;
+
   await db.query(createUsersTableQuery);
   await db.query(createAdminTableQuery);
+  await db.query(createTendersTableQuery);
   dbInitialized = true;
 }
