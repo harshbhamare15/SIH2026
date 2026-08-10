@@ -3,6 +3,21 @@ import { getPool, ensureTablesExist } from '@/lib/db';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
 import crypto from 'crypto';
 
+// Helper to generate a stable, random-looking anonymous pseudonym for live room privacy
+function getAnonymousBidderAlias(bidderId?: string, bidderName?: string, auctionId?: string): string {
+  if (bidderName && bidderName.startsWith('Anonymous Bidder #')) {
+    return bidderName;
+  }
+  const seed = `${auctionId || 'auction'}:${bidderId || bidderName || 'user'}`;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i++) {
+    hash = (hash << 5) - hash + seed.charCodeAt(i);
+    hash |= 0;
+  }
+  const code = Math.abs(hash % 9000) + 1000;
+  return `Anonymous Bidder #${code}`;
+}
+
 export async function GET(req: NextRequest) {
   try {
     await ensureTablesExist();
@@ -30,8 +45,8 @@ export async function GET(req: NextRequest) {
           id: r.id,
           auctionId: r.auctionId,
           auctionTitle: r.auctionTitle || 'Government Procurement Reverse Auction',
-          bidderName: r.bidderName,
-          bidderOrg: r.bidderOrg,
+          bidderName: getAnonymousBidderAlias(String(r.id), r.bidderName, r.auctionId),
+          bidderOrg: 'Enterprise Contractor',
           bidAmount: Number(r.bidAmount),
           bidHash: r.bidHash,
           created_at: r.created_at,
@@ -113,10 +128,10 @@ export async function GET(req: NextRequest) {
 
     // 3. Fetch leaderboard (highest bid valued - H1, H2, H3 ranked by MAX(bidAmount) DESC)
     const [leaderboardRows] = await db.query<RowDataPacket[]>(
-      `SELECT bidderName, bidderOrg, MAX(bidAmount) as bestBid, COUNT(*) as bidCount, MAX(created_at) as lastBidTime 
+      `SELECT bidderId, bidderName, bidderOrg, MAX(bidAmount) as bestBid, COUNT(*) as bidCount, MAX(created_at) as lastBidTime 
        FROM auction_bids 
        WHERE auctionId = ? 
-       GROUP BY bidderName, bidderOrg 
+       GROUP BY bidderId, bidderName, bidderOrg 
        ORDER BY bestBid DESC`,
       [normalizedAuctionId]
     );
@@ -127,6 +142,11 @@ export async function GET(req: NextRequest) {
     const priceGrowth = currentHighest > startNum ? currentHighest - startNum : 0;
     const percentageGrowth = startNum > 0 && priceGrowth > 0 ? ((priceGrowth / startNum) * 100).toFixed(1) + '%' : '0.0%';
 
+    const leadingBidderAnon = leaderboardRows.length > 0 ? {
+      ...leaderboardRows[0],
+      bidderName: getAnonymousBidderAlias(leaderboardRows[0].bidderId, leaderboardRows[0].bidderName, normalizedAuctionId),
+    } : null;
+
     const stats = {
       totalBids: bids.length,
       distinctBidders: leaderboardRows.length,
@@ -135,17 +155,21 @@ export async function GET(req: NextRequest) {
       currentLowestBid: currentHighest, // alias for backwards compat
       priceGrowth,
       percentageGrowth,
-      leadingBidder: leaderboardRows.length > 0 ? leaderboardRows[0] : null,
+      leadingBidder: leadingBidderAnon,
     };
 
     return NextResponse.json({
       success: true,
       auction,
-      bids,
+      bids: bids.map((b) => ({
+        ...b,
+        bidderName: getAnonymousBidderAlias(b.bidderId, b.bidderName, normalizedAuctionId),
+        bidderOrg: 'Enterprise Contractor',
+      })),
       leaderboard: leaderboardRows.map((row, idx) => ({
         rank: `H${idx + 1}`,
-        bidderName: row.bidderName,
-        bidderOrg: row.bidderOrg || 'Registered Contractor',
+        bidderName: getAnonymousBidderAlias(row.bidderId, row.bidderName, normalizedAuctionId),
+        bidderOrg: 'Enterprise Contractor',
         bestBid: Number(row.bestBid),
         bidCount: Number(row.bidCount),
         lastBidTime: row.lastBidTime,
@@ -219,9 +243,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const name = (bidderName || 'Verified Enterprise Bidder').trim();
-    const org = (bidderOrg || 'Government Approved Vendor').trim();
     const bId = bidderId ? String(bidderId).trim() : 'BID-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+    const rawName = (bidderName || 'Verified Enterprise Bidder').trim();
+    const name = getAnonymousBidderAlias(bId, rawName, normalizedAuctionId);
+    const org = (bidderOrg || 'Government Approved Vendor').trim();
 
     // Generate cryptographic hash for immutable bid validation
     const bidHash = '0x' + crypto.createHash('sha256')
