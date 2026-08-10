@@ -14,7 +14,9 @@ export default function AdminRegister() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [agreed, setAgreed] = useState(false);
 
-  const handleRegister = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!fullName || !email || !mobile || !password || !confirmPassword) {
@@ -32,18 +34,37 @@ export default function AdminRegister() {
       return;
     }
 
-    const adminPayload = {
-      fullName,
-      email,
-      mobile,
-      password,
-      role: 'admin',
-      registeredAt: new Date().toISOString()
-    };
+    try {
+      setIsSubmitting(true);
+      const adminPayload = {
+        fullName,
+        email,
+        mobile,
+        password,
+      };
 
-    localStorage.setItem('admin-profile', JSON.stringify(adminPayload));
-    alert('Admin registration successful! Redirecting to login page...');
-    router.push('/admin/login?registered=true');
+      const res = await fetch('/api/admin/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(adminPayload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || 'Admin registration failed. Please try again.');
+        return;
+      }
+
+      localStorage.setItem('admin-profile', JSON.stringify(data.admin || adminPayload));
+      alert('Admin registration successful! Redirecting to login page...');
+      router.push('/admin/login?registered=true');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Network error';
+      alert('Admin registration error: ' + msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -130,7 +151,7 @@ export default function AdminRegister() {
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-2 pl-9 pr-3 text-xs font-semibold text-slate-700 placeholder-slate-400 focus:outline-none focus:border-[#1b4e7e] focus:ring-4 focus:ring-[#1b4e7e]/5 transition-all"
-                  placeholder="e.g. Administrator Harsh"
+                  placeholder="e.g. Administrator"
                 />
               </div>
             </div>
@@ -152,7 +173,7 @@ export default function AdminRegister() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full bg-slate-50/50 border border-slate-200 focus:bg-white rounded-xl py-2 pl-9 pr-3 text-xs font-semibold text-slate-700 placeholder-slate-400 focus:outline-none focus:border-[#1b4e7e] focus:ring-4 focus:ring-[#1b4e7e]/5 transition-all"
-                  placeholder="e.g. admin@eprocure.gov.in"
+                  placeholder="e.g. admin@gmail.com"
                 />
               </div>
             </div>

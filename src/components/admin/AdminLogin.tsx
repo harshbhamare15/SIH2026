@@ -19,7 +19,9 @@ export default function AdminLogin() {
     }
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!email || !password) {
@@ -27,36 +29,30 @@ export default function AdminLogin() {
       return;
     }
 
-    const storedAdmin = localStorage.getItem('admin-profile');
-    let adminProfile = null;
+    try {
+      setIsLoading(true);
+      const res = await fetch('/api/admin/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
-    if (storedAdmin) {
-      adminProfile = JSON.parse(storedAdmin);
-    }
+      const data = await res.json();
 
-    if (adminProfile && adminProfile.email === email) {
-      if (adminProfile.password === password) {
-        localStorage.setItem('logged-in-admin', JSON.stringify(adminProfile));
-        alert('Authentication successful! Opening Admin Dashboard...');
-        router.push('/admin/dashboard');
-        return;
-      } else {
-        alert('Incorrect password. Please verify administrative credentials.');
+      if (!res.ok) {
+        alert(data.error || 'Admin login failed. Please verify administrative credentials.');
         return;
       }
+
+      localStorage.setItem('logged-in-admin', JSON.stringify(data.admin));
+      alert('Authentication successful! Opening Admin Dashboard...');
+      router.push('/admin/dashboard');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Network error';
+      alert('Admin login error: ' + msg);
+    } finally {
+      setIsLoading(false);
     }
-
-    // Default simulated bypass
-    const simulatedAdmin = {
-      fullName: 'System Administrator',
-      email: email,
-      role: 'admin',
-      simulated: true
-    };
-
-    localStorage.setItem('logged-in-admin', JSON.stringify(simulatedAdmin));
-    alert('Bypass entry successful (Simulated System Admin)! Opening dashboard...');
-    router.push('/admin/dashboard');
   };
 
   return (
