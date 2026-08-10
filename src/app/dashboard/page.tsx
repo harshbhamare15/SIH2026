@@ -34,8 +34,15 @@ interface TenderItem {
   location: string;
   value: string;
   deadline: string;
+  closingDate?: string;
   match: "High Match" | "Medium Match";
   status: "active" | "submitted";
+  tenderStatus?: string; // 'OPEN' | 'EVALUATING' | 'AWARDED'
+  winnerApplicantId?: string;
+  winnerName?: string;
+  winnerOrg?: string;
+  winnerAmount?: string;
+  awardedAt?: string;
   myBid?: string;
   distanceKm?: number;
   distanceText?: string;
@@ -185,7 +192,6 @@ export default function DashboardPage() {
     | "categories"
     | "applied"
     | "history"
-    | "upcoming"
   >("dashboard");
 
   const [auctionSubNav, setAuctionSubNav] = useState<
@@ -198,6 +204,11 @@ export default function DashboardPage() {
   const [reverseArenaBidOpen, setReverseArenaBidOpen] = useState(false);
   const [reverseBidInput, setReverseBidInput] = useState("");
   const [sortByNearest, setSortByNearest] = useState(true);
+
+  // Live Tenders Tab Filter & Search States
+  const [liveSearchQuery, setLiveSearchQuery] = useState("");
+  const [liveFilterCategory, setLiveFilterCategory] = useState("All");
+  const [liveSortBy, setLiveSortBy] = useState<"all" | "closing_soon" | "highest_value">("all");
 
   // Buyer MetaMask Escrow State for Auction Portal
   const [activeWallet, setActiveWallet] = useState<string | null>(null);
@@ -346,6 +357,11 @@ export default function DashboardPage() {
     }
   };
 
+  // Helper to verify if logged-in contractor has already submitted an application
+  const hasUserApplied = (tenderId: string) => {
+    return userApplications.some((app) => app.tenderId === tenderId);
+  };
+
   // Dynamic category distribution computed from active tenders
   const categoryData = useMemo(() => {
     const defaultCategories = [
@@ -368,6 +384,50 @@ export default function DashboardPage() {
       };
     });
   }, [tenders]);
+
+  // Dynamic filtered list for Live Tenders tab
+  const filteredLiveTenders = useMemo(() => {
+    let list = tenders.filter((t) => t.tenderStatus !== "AWARDED");
+
+    if (liveSearchQuery.trim()) {
+      const q = liveSearchQuery.toLowerCase();
+      list = list.filter(
+        (t) =>
+          t.title.toLowerCase().includes(q) ||
+          t.dept.toLowerCase().includes(q) ||
+          t.location.toLowerCase().includes(q) ||
+          t.id.toLowerCase().includes(q)
+      );
+    }
+
+    if (liveFilterCategory !== "All") {
+      const catLower = liveFilterCategory.toLowerCase();
+      list = list.filter((t) => {
+        const text = `${t.title} ${t.dept}`.toLowerCase();
+        if (catLower === "infrastructure") return text.includes("road") || text.includes("highway") || text.includes("bridge") || text.includes("infra") || text.includes("expressway");
+        if (catLower === "it") return text.includes("software") || text.includes("hardware") || text.includes("it") || text.includes("cloud") || text.includes("network");
+        if (catLower === "healthcare") return text.includes("medical") || text.includes("health") || text.includes("hospital") || text.includes("pharma");
+        if (catLower === "construction") return text.includes("build") || text.includes("civil") || text.includes("structure") || text.includes("housing");
+        return true;
+      });
+    }
+
+    if (liveSortBy === "closing_soon") {
+      list = [...list].sort((a, b) => {
+        const aClosed = isTenderClosed(a) ? 1 : 0;
+        const bClosed = isTenderClosed(b) ? 1 : 0;
+        return aClosed - bClosed;
+      });
+    } else if (liveSortBy === "highest_value") {
+      list = [...list].sort((a, b) => {
+        const valA = parseFloat(a.value.replace(/[^\d.]/g, "")) || 0;
+        const valB = parseFloat(b.value.replace(/[^\d.]/g, "")) || 0;
+        return valB - valA;
+      });
+    }
+
+    return list;
+  }, [tenders, liveSearchQuery, liveFilterCategory, liveSortBy]);
 
   // Mock state for Arena Auctions (supporting functional search filtering)
   const [auctions, setAuctions] = useState<ArenaAuctionItem[]>([
@@ -529,6 +589,68 @@ export default function DashboardPage() {
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
+  const isTenderClosed = (tender: TenderItem) => {
+    if (tender.tenderStatus === 'AWARDED') return true;
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem('axiom_tender_deadlines');
+      if (saved) {
+        try {
+          const map = JSON.parse(saved);
+          if (map[tender.id] && Date.now() >= map[tender.id]) {
+            return true;
+          }
+        } catch {}
+      }
+    }
+    const str = tender.deadline?.toLowerCase() || '';
+    if (str.includes('closed') || str.includes('00d : 00h : 00m : 00s') || str.includes('00h : 00m : 00s')) {
+      return true;
+    }
+    return false;
+  };
+
+  // Real-time ticker to update tender countdowns and detect expired submission windows
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const savedDeadlines = typeof window !== 'undefined' ? localStorage.getItem('axiom_tender_deadlines') : null;
+      if (!savedDeadlines) return;
+
+      try {
+        const deadlineMap: Record<string, number> = JSON.parse(savedDeadlines);
+        const now = Date.now();
+
+        setTenders((prevTenders) =>
+          prevTenders.map((t) => {
+            const targetEpoch = deadlineMap[t.id];
+            if (!targetEpoch) return t;
+
+            const diff = targetEpoch - now;
+            if (diff <= 0) {
+              return {
+                ...t,
+                deadline: 'Closed',
+              };
+            }
+
+            const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+            const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+            return {
+              ...t,
+              deadline: `${d.toString().padStart(2, '0')}d : ${h.toString().padStart(2, '0')}h : ${m.toString().padStart(2, '0')}m : ${s.toString().padStart(2, '0')}s`,
+            };
+          })
+        );
+      } catch (err) {
+        console.error('Error updating tender countdown ticker:', err);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   // Tenders & Auctions Normalization to prevent type errors across Admin/User schemas
   const normalizeTenders = (raw: any[]): TenderItem[] => {
     return raw.map((item) => ({
@@ -538,8 +660,15 @@ export default function DashboardPage() {
       location: item.location || "",
       value: item.value || "",
       deadline: item.deadline || item.closingDate || "",
+      closingDate: item.closingDate || item.deadline || "",
       match: item.match || item.matchType || "High Match",
-      status: item.status || "active",
+      status: (item.status === "AWARDED" || item.status === "submitted") ? "submitted" : "active",
+      tenderStatus: item.status || "OPEN",
+      winnerApplicantId: item.winnerApplicantId || undefined,
+      winnerName: item.winnerName || undefined,
+      winnerOrg: item.winnerOrg || undefined,
+      winnerAmount: item.winnerAmount || undefined,
+      awardedAt: item.awardedAt || undefined,
       myBid: item.myBid || undefined,
     }));
   };
@@ -735,6 +864,10 @@ export default function DashboardPage() {
   const [quickApplyBidValue, setQuickApplyBidValue] = useState("");
 
   const handleQuickApply = (item: TenderItem) => {
+    if (isTenderClosed(item)) {
+      alert("Submission window for this tender has elapsed and is closed.");
+      return;
+    }
     setQuickApplyTender(item);
     setQuickApplyStep(1);
     setQuickApplyBidValue("");
@@ -854,8 +987,7 @@ export default function DashboardPage() {
       | "find"
       | "categories"
       | "applied"
-      | "history"
-      | "upcoming",
+      | "history",
   ) => {
     setActiveSubNav(tab);
     setSearchQuery("");
@@ -892,12 +1024,6 @@ export default function DashboardPage() {
     if (tab === "history") {
       setActiveTab("tender");
       setFilterSubmittedOnly(true);
-      return;
-    }
-
-    if (tab === "upcoming") {
-      setActiveTab("tender");
-      setFilterSubmittedOnly(false);
       return;
     }
   };
@@ -945,14 +1071,15 @@ export default function DashboardPage() {
     );
   }
 
-  let baseTenders = tendersWithDistance;
+  // Filter out awarded tenders from the active dashboard repository
+  let baseTenders = tendersWithDistance.filter((t) => t.tenderStatus !== "AWARDED");
 
-  if (activeSubNav === "applied" || activeSubNav === "history") {
+  if (activeSubNav === "applied") {
     baseTenders = tendersWithDistance.filter((t) => t.status === "submitted");
   }
 
-  if (activeSubNav === "live" || activeSubNav === "upcoming") {
-    baseTenders = tendersWithDistance.filter((t) => t.status === "active");
+  if (activeSubNav === "live") {
+    baseTenders = tendersWithDistance.filter((t) => t.tenderStatus !== "AWARDED" && t.status === "active");
   }
 
   const filteredTenders = baseTenders
@@ -1110,17 +1237,6 @@ export default function DashboardPage() {
                   }`}
                 >
                   Past History
-                </button>
-
-                <button
-                  onClick={() => setActiveSubNav("upcoming")}
-                  className={`h-full px-1 flex items-center whitespace-nowrap border-b-2 transition-colors cursor-pointer ${
-                    activeSubNav === "upcoming"
-                      ? "text-[#1b4e7e] border-[#1b4e7e]"
-                      : "text-slate-500 border-transparent hover:text-[#1b4e7e]"
-                  }`}
-                >
-                  Upcoming
                 </button>
               </>
             ) : (
@@ -1398,7 +1514,43 @@ export default function DashboardPage() {
                               View Details
                             </button>
 
-                            {item.status === "active" ? (
+                            {item.tenderStatus === "AWARDED" ? (
+                              <button
+                                disabled
+                                className="w-full bg-slate-200 text-slate-400 border border-slate-300 rounded-lg cursor-not-allowed flex flex-col items-center justify-center py-1.5 px-2 h-11"
+                              >
+                                <span className="font-bold text-[11px]">
+                                  Tender Awarded
+                                </span>
+                                <span className="text-[8px] opacity-80 leading-none mt-0.5">
+                                  Evaluation Completed
+                                </span>
+                              </button>
+                            ) : isTenderClosed(item) ? (
+                              <button
+                                disabled
+                                className="w-full bg-slate-200 text-slate-400 border border-slate-300 rounded-lg cursor-not-allowed flex flex-col items-center justify-center py-1.5 px-2 h-11"
+                              >
+                                <span className="font-bold text-[11px]">
+                                  Submission Closed
+                                </span>
+                                <span className="text-[8px] opacity-80 leading-none mt-0.5">
+                                  Deadline Elapsed
+                                </span>
+                              </button>
+                            ) : hasUserApplied(item.id) ? (
+                              <button
+                                disabled
+                                className="w-full bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg cursor-not-allowed flex flex-col items-center justify-center py-1.5 px-2 h-11"
+                              >
+                                <span className="font-bold text-[11px]">
+                                  Submitted
+                                </span>
+                                <span className="text-[8px] opacity-80 leading-none mt-0.5">
+                                  Application Received
+                                </span>
+                              </button>
+                            ) : (
                               <button
                                 onClick={() => handleQuickApply(item)}
                                 className="w-full bg-[#1b4e7e] hover:bg-[#163f68] text-white rounded-lg cursor-pointer transition-colors flex flex-col items-center justify-center py-1.5 px-2 shadow-md h-11"
@@ -1409,21 +1561,6 @@ export default function DashboardPage() {
 
                                 <span className="text-[8px] opacity-80 leading-none mt-0.5 whitespace-nowrap">
                                   One-click action pre-uploaded documents
-                                </span>
-                              </button>
-                            ) : (
-                              <button
-                                disabled
-                                className="w-full bg-slate-200 text-slate-400 border border-slate-300 rounded-lg cursor-not-allowed flex flex-col items-center justify-center py-1.5 px-2 h-11"
-                              >
-                                <span className="font-bold text-[11px]">
-                                  Submitted
-                                </span>
-
-                                <span className="text-[8px] opacity-80 leading-none mt-0.5">
-                                  {item.myBid?.includes("Vault")
-                                    ? "Vault Record Synced"
-                                    : "Bid Submitted"}
                                 </span>
                               </button>
                             )}
@@ -2209,97 +2346,251 @@ export default function DashboardPage() {
 
         {activeSubNav === "live" && (
           <section className="space-y-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-3">
-                  <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse" />
-
-                  <h2 className="text-xl font-bold text-slate-800">
-                    Live Tenders
-                  </h2>
+            {/* Header & Status Banner */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex h-3 w-3 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                    </span>
+                    <h2 className="text-xl font-black text-slate-900 tracking-tight">
+                      Live Bidding Floor
+                    </h2>
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 text-[10px] font-extrabold border border-emerald-200">
+                      REAL-TIME
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Actively open public procurement tenders accepting encrypted 2-of-2 split-key proposals.
+                  </p>
                 </div>
 
-                <p className="text-sm text-slate-500 mt-1">
-                  Currently active tenders available for bidding from MySQL database
-                </p>
+                <div className="flex items-center gap-3">
+                  <div className="bg-slate-50 border border-slate-200 px-3.5 py-2 rounded-xl text-center">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Active Tenders</span>
+                    <span className="text-sm font-black text-[#1b4e7e]">{filteredLiveTenders.length} Available</span>
+                  </div>
+                </div>
               </div>
 
-              <span className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-100">
-                {tenders.length} Live Tenders
-              </span>
+              {/* Live Search & Filter Bar */}
+              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 pt-2 border-t border-slate-100">
+                <div className="sm:col-span-6 relative">
+                  <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Search by tender title, department, ID, or state..."
+                    value={liveSearchQuery}
+                    onChange={(e) => setLiveSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#1b4e7e] focus:bg-white transition-colors"
+                  />
+                  {liveSearchQuery && (
+                    <button
+                      onClick={() => setLiveSearchQuery("")}
+                      className="absolute right-3 top-2.5 text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+
+                <div className="sm:col-span-3">
+                  <select
+                    value={liveFilterCategory}
+                    onChange={(e) => setLiveFilterCategory(e.target.value)}
+                    className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#1b4e7e] focus:bg-white transition-colors"
+                  >
+                    <option value="All">All Categories</option>
+                    <option value="Infrastructure">Infrastructure</option>
+                    <option value="IT">IT & Software</option>
+                    <option value="Healthcare">Healthcare</option>
+                    <option value="Construction">Construction</option>
+                  </select>
+                </div>
+
+                <div className="sm:col-span-3">
+                  <select
+                    value={liveSortBy}
+                    onChange={(e) => setLiveSortBy(e.target.value as any)}
+                    className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:border-[#1b4e7e] focus:bg-white transition-colors"
+                  >
+                    <option value="all">Sort: Default</option>
+                    <option value="closing_soon">Sort: Closing Soonest</option>
+                    <option value="highest_value">Sort: Highest Budget</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
-            {tenders.length > 0 ? (
+            {/* Live Tenders Cards Grid */}
+            {filteredLiveTenders.length > 0 ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {tenders.map((tender) => (
-                  <div
-                    key={tender.id}
-                    className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <span className="text-[10px] font-bold text-[#1b4e7e]">
-                            {tender.id}
-                          </span>
+                {filteredLiveTenders.map((tender) => {
+                  const closed = isTenderClosed(tender);
+                  const applied = hasUserApplied(tender.id);
 
-                          <h3 className="text-sm font-bold text-slate-800 mt-1">
-                            {tender.title}
-                          </h3>
+                  return (
+                    <div
+                      key={tender.id}
+                      className="bg-white border border-slate-200/90 rounded-2xl p-5 sm:p-6 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-5 group"
+                    >
+                      <div className="space-y-4">
+                        {/* Top Meta Bar */}
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-mono font-bold text-[#1b4e7e] bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                                {tender.id}
+                              </span>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                {tender.location}
+                              </span>
+                            </div>
+                            <h3 className="text-base font-extrabold text-slate-900 group-hover:text-[#1b4e7e] transition-colors mt-2 leading-snug">
+                              {tender.title}
+                            </h3>
+                            <p className="text-xs text-slate-500 font-medium mt-1">
+                              {tender.dept}
+                            </p>
+                          </div>
 
-                          <p className="text-xs text-slate-500 mt-1">
-                            {tender.dept}
-                          </p>
+                          <div className="shrink-0">
+                            {closed ? (
+                              <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold border border-slate-200 flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                CLOSED
+                              </span>
+                            ) : applied ? (
+                              <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200 flex items-center gap-1.5">
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                                </svg>
+                                APPLIED
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200 flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                LIVE
+                              </span>
+                            )}
+                          </div>
                         </div>
 
-                        <span className="px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold shrink-0">
-                          LIVE
-                        </span>
+                        {/* 4-Block Info Grid */}
+                        <div className="grid grid-cols-2 gap-2.5 text-xs">
+                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                              Estimated Budget
+                            </span>
+                            <span className="text-sm font-black text-slate-800 block mt-0.5">
+                              {tender.value}
+                            </span>
+                          </div>
+
+                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                              Timelock Expiry
+                            </span>
+                            <span className={`text-xs font-mono font-bold block mt-0.5 ${
+                              closed ? 'text-slate-400' : 'text-rose-600 font-extrabold'
+                            }`}>
+                              {tender.deadline}
+                            </span>
+                          </div>
+
+                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                              Profile Match
+                            </span>
+                            <span className="text-xs font-extrabold text-emerald-700 block mt-0.5">
+                              {tender.match}
+                            </span>
+                          </div>
+
+                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                              Axiom Vault
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-600 flex items-center gap-1 mt-0.5">
+                              <svg className="w-3.5 h-3.5 text-[#1b4e7e]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                              </svg>
+                              2-of-2 Key Sealed
+                            </span>
+                          </div>
+                        </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 mt-5">
-                        <div className="bg-slate-50 rounded-lg p-3">
-                          <p className="text-[10px] text-slate-400">Match</p>
-                          <p className="text-xs font-bold text-slate-700 mt-1">
-                            {tender.match}
-                          </p>
-                        </div>
+                      {/* Action Footer */}
+                      <div className="pt-4 border-t border-slate-100 flex items-center gap-3">
+                        <button
+                          onClick={() => setSelectedTender(tender)}
+                          className="w-1/2 py-2.5 border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs transition-colors cursor-pointer text-center"
+                        >
+                          View Details
+                        </button>
 
-                        <div className="bg-slate-50 rounded-lg p-3">
-                          <p className="text-[10px] text-slate-400">Location</p>
-                          <p className="text-xs font-bold text-slate-700 mt-1">
-                            {tender.location}
-                          </p>
-                        </div>
-
-                        <div className="bg-slate-50 rounded-lg p-3">
-                          <p className="text-[10px] text-slate-400">Tender Value</p>
-                          <p className="text-xs font-bold text-slate-700 mt-1">
-                            {tender.value}
-                          </p>
-                        </div>
-
-                        <div className="bg-slate-50 rounded-lg p-3">
-                          <p className="text-[10px] text-slate-400">Deadline</p>
-                          <p className="text-xs font-bold text-red-600 mt-1">
-                            {tender.deadline}
-                          </p>
-                        </div>
+                        {closed ? (
+                          <button
+                            disabled
+                            className="w-1/2 py-2.5 bg-slate-100 text-slate-400 border border-slate-200 rounded-xl text-xs font-bold cursor-not-allowed text-center"
+                          >
+                            Submission Closed
+                          </button>
+                        ) : applied ? (
+                          <button
+                            disabled
+                            className="w-1/2 py-2.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-bold cursor-not-allowed flex items-center justify-center gap-1.5"
+                          >
+                            <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                            </svg>
+                            Bid Submitted
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleQuickApply(tender)}
+                            className="w-1/2 py-2.5 bg-[#1b4e7e] hover:bg-[#133c62] text-white rounded-xl text-xs font-bold transition-all shadow-xs hover:shadow cursor-pointer flex items-center justify-center gap-1.5"
+                          >
+                            <svg className="w-4 h-4 text-blue-200" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+                            </svg>
+                            Quick Apply (Vault)
+                          </button>
+                        )}
                       </div>
                     </div>
-
-                    <button
-                      onClick={() => setSelectedTender(tender)}
-                      className="w-full mt-5 bg-[#1b4e7e] hover:bg-[#163f65] text-white py-2.5 rounded-lg text-xs font-bold transition-colors cursor-pointer"
-                    >
-                      View & Apply
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
-              <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500">
-                <p className="text-sm font-semibold">No tenders currently active in the database.</p>
+              <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500 space-y-3">
+                <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                  </svg>
+                </div>
+                <h3 className="text-base font-bold text-slate-800">No active live tenders found</h3>
+                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                  {liveSearchQuery || liveFilterCategory !== "All"
+                    ? "No live tenders match your search filters. Try clearing your search or selecting all categories."
+                    : "All tenders in the database are currently evaluated or awarded. Check the Past History tab for historical awards."}
+                </p>
+                {(liveSearchQuery || liveFilterCategory !== "All") && (
+                  <button
+                    onClick={() => {
+                      setLiveSearchQuery("");
+                      setLiveFilterCategory("All");
+                    }}
+                    className="px-4 py-2 bg-[#1b4e7e] text-white rounded-lg text-xs font-bold transition-colors cursor-pointer mt-2"
+                  >
+                    Reset Filters
+                  </button>
+                )}
               </div>
             )}
           </section>
@@ -2404,12 +2695,28 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    <button
-                      onClick={() => setSelectedTender(tender)}
-                      className="w-full mt-5 bg-[#1b4e7e] hover:bg-[#163f65] text-white py-2.5 rounded-lg text-xs font-bold cursor-pointer"
-                    >
-                      View Details & Apply
-                    </button>
+                    {isTenderClosed(tender) ? (
+                      <button
+                        disabled
+                        className="w-full mt-5 bg-slate-100 text-slate-400 border border-slate-200 py-2.5 rounded-lg text-xs font-bold cursor-not-allowed text-center"
+                      >
+                        Submission Closed
+                      </button>
+                    ) : hasUserApplied(tender.id) ? (
+                      <button
+                        disabled
+                        className="w-full mt-5 bg-emerald-50 text-emerald-700 border border-emerald-200 py-2.5 rounded-lg text-xs font-bold cursor-not-allowed text-center"
+                      >
+                        Application Submitted
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setSelectedTender(tender)}
+                        className="w-full mt-5 bg-[#1b4e7e] hover:bg-[#163f65] text-white py-2.5 rounded-lg text-xs font-bold cursor-pointer"
+                      >
+                        View Details & Apply
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -2585,169 +2892,146 @@ export default function DashboardPage() {
         {activeSubNav === "history" && (
           <section className="space-y-6">
             <div>
-              <h2 className="text-xl font-bold text-slate-800">Past History</h2>
+              <h2 className="text-xl font-bold text-slate-800">Past History & Evaluated Tenders</h2>
 
               <p className="text-sm text-slate-500 mt-1">
-                Review your previous tender applications and evaluated results.
+                Review completed tenders, winning contractor selections, and evaluated applications.
               </p>
             </div>
 
-            {userApplications.filter((a) => a.status === "UNSEALED").length > 0 ? (
+            {/* 1. Awarded Tenders from Database */}
+            {tenders.filter((t) => t.tenderStatus === "AWARDED").length > 0 && (
               <div className="space-y-4">
-                {userApplications
-                  .filter((a) => a.status === "UNSEALED")
-                  .map((item) => (
-                    <div
-                      key={item.applicationId}
-                      className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3"
-                    >
-                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-                        <div className="flex-1">
-                          <span className="text-[10px] font-mono font-bold text-[#1b4e7e]">
-                            {item.applicationId}
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Awarded Procurement Notices</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  {tenders
+                    .filter((t) => t.tenderStatus === "AWARDED")
+                    .map((tender) => (
+                      <div
+                        key={tender.id}
+                        className="bg-white border-2 border-emerald-200/80 rounded-xl p-5 shadow-sm space-y-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <span className="text-[10px] font-bold text-[#1b4e7e] font-mono">
+                              {tender.id}
+                            </span>
+                            <h3 className="text-sm font-extrabold text-slate-800 mt-1">
+                              {tender.title}
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              {tender.dept} • {tender.location}
+                            </p>
+                          </div>
+
+                          <span className="px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-extrabold shrink-0 border border-emerald-300">
+                            AWARDED
                           </span>
-
-                          <h3 className="text-sm font-bold text-slate-800 mt-1">
-                            {item.tenderTitle || "Public Procurement Package"}
-                          </h3>
-
-                          <p className="text-xs text-slate-500 mt-1">
-                            {item.department || "Government Directorate"}
-                          </p>
                         </div>
 
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 text-xs">
-                          <div>
-                            <p className="text-slate-400 text-[10px]">Location</p>
-                            <p className="font-bold text-slate-700 mt-1">
-                              {item.location || "Gujarat"}
-                            </p>
+                        {/* Prominent Winner Display Box */}
+                        <div className="bg-emerald-50/80 border border-emerald-200 rounded-lg p-3.5 space-y-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                              Selected Winner:
+                            </span>
+                            <span className="font-extrabold text-emerald-950">
+                              {tender.winnerOrg || tender.winnerName || 'Awarded Bidder'}
+                            </span>
                           </div>
 
-                          <div>
-                            <p className="text-slate-400 text-[10px]">Applied On</p>
-                            <p className="font-bold text-slate-700 mt-1">
-                              {item.submittedAt ? new Date(item.submittedAt).toLocaleDateString('en-GB') : 'N/A'}
-                            </p>
+                          {tender.winnerName && tender.winnerOrg && (
+                            <div className="flex items-center justify-between text-xs text-emerald-700">
+                              <span className="text-[10px]">Authorized Rep:</span>
+                              <span className="font-semibold">{tender.winnerName}</span>
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between text-xs pt-1 border-t border-emerald-200/60">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                              Winning Bid Amount:
+                            </span>
+                            <span className="font-black text-emerald-900">
+                              {tender.winnerAmount || tender.value}
+                            </span>
                           </div>
 
-                          <div>
-                            <p className="text-slate-400 text-[10px]">Est. Value</p>
-                            <p className="font-bold text-slate-700 mt-1">
-                              {item.value || "N/A"}
-                            </p>
-                          </div>
+                          {tender.awardedAt && (
+                            <div className="text-[10px] text-emerald-600 text-right pt-0.5">
+                              Awarded On: {new Date(tender.awardedAt).toLocaleDateString('en-GB')}
+                            </div>
+                          )}
                         </div>
-
-                        <span className="px-3 py-1.5 rounded-lg text-[10px] font-bold whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-100">
-                          EVALUATED
-                        </span>
                       </div>
-                    </div>
-                  ))}
-              </div>
-            ) : (
-              <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500 space-y-2">
-                <p className="text-sm font-semibold">No evaluated historical applications yet.</p>
-                <p className="text-xs text-slate-400">Applications will appear in past history once their submission deadline closes and bids are unsealed.</p>
+                    ))}
+                </div>
               </div>
             )}
-          </section>
-        )}
 
-        {/* ========================================================= */}
-        {/* ======================= UPCOMING ======================== */}
-        {/* ========================================================= */}
+            {/* 2. User Evaluated Applications */}
+            {userApplications.filter((a) => a.status === "UNSEALED").length > 0 && (
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Your Evaluated Applications</h3>
+                <div className="space-y-4">
+                  {userApplications
+                    .filter((a) => a.status === "UNSEALED")
+                    .map((item) => (
+                      <div
+                        key={item.applicationId}
+                        className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3"
+                      >
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+                          <div className="flex-1">
+                            <span className="text-[10px] font-mono font-bold text-[#1b4e7e]">
+                              {item.applicationId}
+                            </span>
 
-        {activeSubNav === "upcoming" && (
-          <section className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-slate-800">
-                  Upcoming Tenders
-                </h2>
+                            <h3 className="text-sm font-bold text-slate-800 mt-1">
+                              {item.tenderTitle || "Public Procurement Package"}
+                            </h3>
 
-                <p className="text-sm text-slate-500 mt-1">
-                  Active and upcoming tenders in the procurement queue.
-                </p>
-              </div>
+                            <p className="text-xs text-slate-500 mt-1">
+                              {item.department || "Government Directorate"}
+                            </p>
+                          </div>
 
-              <span className="px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 text-xs font-bold border border-violet-100">
-                {tenders.length} Active / Upcoming
-              </span>
-            </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 text-xs">
+                            <div>
+                              <p className="text-slate-400 text-[10px]">Location</p>
+                              <p className="font-bold text-slate-700 mt-1">
+                                {item.location || "Gujarat"}
+                              </p>
+                            </div>
 
-            {tenders.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {tenders.map((tender) => (
-                  <div
-                    key={tender.id}
-                    className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex justify-between items-start gap-3">
-                        <div>
-                          <span className="text-[10px] font-bold text-[#1b4e7e]">
-                            {tender.id}
+                            <div>
+                              <p className="text-slate-400 text-[10px]">Applied On</p>
+                              <p className="font-bold text-slate-700 mt-1">
+                                {item.submittedAt ? new Date(item.submittedAt).toLocaleDateString('en-GB') : 'N/A'}
+                              </p>
+                            </div>
+
+                            <div>
+                              <p className="text-slate-400 text-[10px]">Est. Value</p>
+                              <p className="font-bold text-slate-700 mt-1">
+                                {item.value || "N/A"}
+                              </p>
+                            </div>
+                          </div>
+
+                          <span className="px-3 py-1.5 rounded-lg text-[10px] font-bold whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-100">
+                            EVALUATED
                           </span>
-
-                          <h3 className="text-sm font-bold text-slate-800 mt-1">
-                            {tender.title}
-                          </h3>
-
-                          <p className="text-xs text-slate-500 mt-1">
-                            {tender.dept}
-                          </p>
-                        </div>
-
-                        <span className="px-2 py-1 rounded-md bg-violet-50 text-violet-700 text-[10px] font-bold shrink-0">
-                          ACTIVE
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3 mt-5">
-                        <div className="bg-slate-50 rounded-lg p-3">
-                          <p className="text-[10px] text-slate-400">Match</p>
-                          <p className="text-xs font-bold text-slate-700 mt-1">
-                            {tender.match}
-                          </p>
-                        </div>
-
-                        <div className="bg-slate-50 rounded-lg p-3">
-                          <p className="text-[10px] text-slate-400">Location</p>
-                          <p className="text-xs font-bold text-slate-700 mt-1">
-                            {tender.location}
-                          </p>
-                        </div>
-
-                        <div className="bg-slate-50 rounded-lg p-3">
-                          <p className="text-[10px] text-slate-400">Value</p>
-                          <p className="text-xs font-bold text-slate-700 mt-1">
-                            {tender.value}
-                          </p>
-                        </div>
-
-                        <div className="bg-slate-50 rounded-lg p-3">
-                          <p className="text-[10px] text-slate-400">Closing</p>
-                          <p className="text-xs font-bold text-red-600 mt-1">
-                            {tender.deadline}
-                          </p>
                         </div>
                       </div>
-                    </div>
-
-                    <button
-                      onClick={() => setSelectedTender(tender)}
-                      className="w-full mt-5 bg-[#1b4e7e] hover:bg-[#163f65] text-white py-2.5 rounded-lg text-xs font-bold cursor-pointer"
-                    >
-                      View Details & Apply
-                    </button>
-                  </div>
-                ))}
+                    ))}
+                </div>
               </div>
-            ) : (
-              <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500">
-                <p className="text-sm font-semibold">No upcoming tenders scheduled.</p>
+            )}
+
+            {tenders.filter((t) => t.tenderStatus === "AWARDED").length === 0 && userApplications.filter((a) => a.status === "UNSEALED").length === 0 && (
+              <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500 space-y-2">
+                <p className="text-sm font-semibold">No evaluated historical tenders yet.</p>
+                <p className="text-xs text-slate-400">Tenders will appear in past history once evaluated and awarded to winning contractors by the admin.</p>
               </div>
             )}
           </section>

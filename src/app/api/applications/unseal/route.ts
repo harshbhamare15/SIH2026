@@ -78,14 +78,14 @@ export async function POST(req: NextRequest) {
           app.networkKeyShare
         );
 
-        // Update status in DB to UNSEALED
+        // Update status in DB to UNSEALED only if currently SEALED
         await db.query<ResultSetHeader>(
-          'UPDATE tender_applications SET status = "UNSEALED", unsealedAt = NOW() WHERE id = ?',
+          'UPDATE tender_applications SET status = CASE WHEN status IN ("AWARDED", "REJECTED") THEN status ELSE "UNSEALED" END, unsealedAt = IFNULL(unsealedAt, NOW()) WHERE id = ?',
           [app.applicationId]
         );
 
         await db.query<ResultSetHeader>(
-          'UPDATE axiom_network_vault SET vaultStatus = "RELEASED_FOR_DECRYPTION", released_at = NOW() WHERE applicationId = ?',
+          'UPDATE axiom_network_vault SET vaultStatus = "RELEASED_FOR_DECRYPTION", released_at = IFNULL(released_at, NOW()) WHERE applicationId = ?',
           [app.applicationId]
         );
 
@@ -98,17 +98,24 @@ export async function POST(req: NextRequest) {
           submittedAt: app.submittedAt,
           payload: decryptedPayload,
           unsealedAt: new Date().toISOString(),
-          status: 'UNSEALED'
+          status: app.status === 'AWARDED' ? 'AWARDED' : app.status === 'REJECTED' ? 'REJECTED' : 'UNSEALED'
         });
       } catch (e) {
         console.error(`Error unsealing application ${app.applicationId}:`, e);
       }
     }
 
+    const [latestTenders] = await db.query<RowDataPacket[]>(
+      'SELECT id, title, client, location, value, closingDate, matchType, status, winnerApplicantId, winnerName, winnerOrg, winnerAmount, awardedAt FROM tenders WHERE id = ? LIMIT 1',
+      [tender.id]
+    );
+    const latestTender = latestTenders && latestTenders.length > 0 ? latestTenders[0] : tender;
+
     return NextResponse.json({
       success: true,
       message: `Axiom Cryptographic Engine successfully decrypted ${decryptedList.length} applications using dual DB & Network key shares.`,
       tenderId: tender.id,
+      tender: latestTender,
       unsealedCount: decryptedList.length,
       applications: decryptedList,
     });

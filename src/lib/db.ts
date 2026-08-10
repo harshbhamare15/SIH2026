@@ -89,6 +89,12 @@ export async function ensureTablesExist(): Promise<void> {
       value VARCHAR(100) NOT NULL,
       closingDate VARCHAR(100) NOT NULL,
       matchType VARCHAR(50) NOT NULL DEFAULT 'High Match',
+      status VARCHAR(50) NOT NULL DEFAULT 'OPEN',
+      winnerApplicantId VARCHAR(100) NULL,
+      winnerName VARCHAR(255) NULL,
+      winnerOrg VARCHAR(255) NULL,
+      winnerAmount VARCHAR(100) NULL,
+      awardedAt TIMESTAMP NULL,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -106,7 +112,7 @@ export async function ensureTablesExist(): Promise<void> {
       authTag VARCHAR(64) NOT NULL,
       dbKeyShare VARCHAR(128) NOT NULL,
       bidHash VARCHAR(128) NOT NULL,
-      status ENUM('SEALED', 'UNSEALED') NOT NULL DEFAULT 'SEALED',
+      status VARCHAR(50) NOT NULL DEFAULT 'SEALED',
       submittedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       unsealedAt TIMESTAMP NULL,
       INDEX idx_app_tender (tenderId),
@@ -134,6 +140,45 @@ export async function ensureTablesExist(): Promise<void> {
   await db.query(createTendersTableQuery);
   await db.query(createApplicationsTableQuery);
   await db.query(createNetworkVaultTableQuery);
+
+  // Safe migrations for tender_applications table
+  try {
+    await db.query('ALTER TABLE tender_applications MODIFY COLUMN status VARCHAR(50) NOT NULL DEFAULT "SEALED"');
+  } catch (e) {
+    console.error('Column migration error in tender_applications:', e);
+  }
+
+  // Safe migrations for tenders table
+
+  // Safe migrations for tenders table
+  try {
+    const [statusCols] = await db.query<any[]>('SHOW COLUMNS FROM tenders LIKE "status"');
+    if (!statusCols || statusCols.length === 0) {
+      await db.query('ALTER TABLE tenders ADD COLUMN status VARCHAR(50) NOT NULL DEFAULT "OPEN"');
+    }
+    const [winnerAppCols] = await db.query<any[]>('SHOW COLUMNS FROM tenders LIKE "winnerApplicantId"');
+    if (!winnerAppCols || winnerAppCols.length === 0) {
+      await db.query('ALTER TABLE tenders ADD COLUMN winnerApplicantId VARCHAR(100) NULL');
+    }
+    const [winnerNameCols] = await db.query<any[]>('SHOW COLUMNS FROM tenders LIKE "winnerName"');
+    if (!winnerNameCols || winnerNameCols.length === 0) {
+      await db.query('ALTER TABLE tenders ADD COLUMN winnerName VARCHAR(255) NULL');
+    }
+    const [winnerOrgCols] = await db.query<any[]>('SHOW COLUMNS FROM tenders LIKE "winnerOrg"');
+    if (!winnerOrgCols || winnerOrgCols.length === 0) {
+      await db.query('ALTER TABLE tenders ADD COLUMN winnerOrg VARCHAR(255) NULL');
+    }
+    const [winnerAmtCols] = await db.query<any[]>('SHOW COLUMNS FROM tenders LIKE "winnerAmount"');
+    if (!winnerAmtCols || winnerAmtCols.length === 0) {
+      await db.query('ALTER TABLE tenders ADD COLUMN winnerAmount VARCHAR(100) NULL');
+    }
+    const [awardedAtCols] = await db.query<any[]>('SHOW COLUMNS FROM tenders LIKE "awardedAt"');
+    if (!awardedAtCols || awardedAtCols.length === 0) {
+      await db.query('ALTER TABLE tenders ADD COLUMN awardedAt TIMESTAMP NULL');
+    }
+  } catch (e) {
+    console.error('Column migration error in tenders:', e);
+  }
 
   // Safe migration for existing users table
   try {

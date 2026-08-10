@@ -8,7 +8,7 @@ export async function GET() {
     const db = getPool();
 
     const [rows] = await db.query<RowDataPacket[]>(
-      'SELECT id, title, client, location, value, closingDate, matchType, created_at, updated_at FROM tenders ORDER BY created_at DESC'
+      'SELECT id, title, client, location, value, closingDate, matchType, status, winnerApplicantId, winnerName, winnerOrg, winnerAmount, awardedAt, created_at, updated_at FROM tenders ORDER BY created_at DESC'
     );
 
     return NextResponse.json({
@@ -80,6 +80,7 @@ export async function POST(req: NextRequest) {
       value: value.trim(),
       closingDate: closingDate.trim(),
       matchType: tenderMatchType,
+      status: 'OPEN',
     };
 
     return NextResponse.json(
@@ -95,6 +96,58 @@ export async function POST(req: NextRequest) {
     const errorMessage = error instanceof Error ? error.message : 'Internal Server Error';
     return NextResponse.json(
       { error: 'Failed to publish tender: ' + errorMessage },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { tenderId, applicantId, winnerName, winnerOrg, winnerAmount, status } = body;
+
+    if (!tenderId) {
+      return NextResponse.json(
+        { error: 'Tender ID is required' },
+        { status: 400 }
+      );
+    }
+
+    await ensureTablesExist();
+    const db = getPool();
+
+    const targetStatus = status || 'AWARDED';
+
+    await db.query(
+      `UPDATE tenders 
+       SET status = ?, winnerApplicantId = ?, winnerName = ?, winnerOrg = ?, winnerAmount = ?, awardedAt = NOW() 
+       WHERE id = ?`,
+      [targetStatus, applicantId || null, winnerName || null, winnerOrg || null, winnerAmount || null, tenderId.trim()]
+    );
+
+    if (applicantId && targetStatus === 'AWARDED') {
+      // Mark winning applicant as AWARDED
+      await db.query(
+        'UPDATE tender_applications SET status = "AWARDED" WHERE id = ?',
+        [applicantId.trim()]
+      );
+
+      // Mark other applicants for this tender as REJECTED
+      await db.query(
+        'UPDATE tender_applications SET status = "REJECTED" WHERE tenderId = ? AND id != ?',
+        [tenderId.trim(), applicantId.trim()]
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: `Tender ${tenderId} marked as ${targetStatus} and application statuses updated in database`,
+    });
+  } catch (error: unknown) {
+    console.error('Update tender award error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Internal Server Error';
+    return NextResponse.json(
+      { error: 'Failed to update tender: ' + errorMessage },
       { status: 500 }
     );
   }

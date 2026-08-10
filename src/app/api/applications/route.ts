@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
 
     // Case 2: Specific Tender Details & Sealed / Unsealed Resolution
     const [tenders] = await db.query<RowDataPacket[]>(
-      'SELECT id, title, client, location, value, closingDate, matchType FROM tenders WHERE id = ? LIMIT 1',
+      'SELECT id, title, client, location, value, closingDate, matchType, status, winnerApplicantId, winnerName, winnerOrg, winnerAmount, awardedAt FROM tenders WHERE id = ? LIMIT 1',
       [tenderId.trim()]
     );
 
@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
     }
 
     const tender = tenders[0];
-    const isDeadlinePassed = isTenderDeadlinePassed(tender.closingDate) || forceUnseal;
+    const isDeadlinePassed = isTenderDeadlinePassed(tender.closingDate) || forceUnseal || tender.status === 'AWARDED';
 
     // Fetch applications count
     const [countRows] = await db.query<RowDataPacket[]>(
@@ -111,6 +111,7 @@ export async function GET(req: NextRequest) {
         totalApplications: totalCount,
         applications: [], // Strictly hidden & sealed before deadline
         status: 'SEALED_VAULT_ACTIVE',
+        tender: tender,
         message: `Tender window is active. All ${totalCount} application details are cryptographically sealed in the 2-of-2 Axiom Vault. Decryption unlocks automatically upon deadline expiry.`
       });
     }
@@ -142,10 +143,12 @@ export async function GET(req: NextRequest) {
     const unsealedApplications: Array<{
       applicationId: string;
       tenderId: string;
+      applicantName: string;
+      applicantEmail: string;
       bidHash: string;
       submittedAt: string;
       payload: DecryptedApplicationPayload;
-      integrityVerified: boolean;
+      status: string;
     }> = [];
 
     for (const row of appRows) {
@@ -161,10 +164,12 @@ export async function GET(req: NextRequest) {
         unsealedApplications.push({
           applicationId: row.applicationId,
           tenderId: row.tenderId,
+          applicantName: row.applicantName,
+          applicantEmail: row.applicantEmail,
           bidHash: row.bidHash,
           submittedAt: row.submittedAt,
           payload: decryptedPayload,
-          integrityVerified: true,
+          status: row.status || 'UNSEALED'
         });
       } catch (decErr) {
         console.error(`Failed to decrypt application ${row.applicationId}:`, decErr);
@@ -180,6 +185,7 @@ export async function GET(req: NextRequest) {
       totalApplications: totalCount,
       unsealedCount: unsealedApplications.length,
       status: 'UNSEALED_DECRYPTED',
+      tender: tender,
       applications: unsealedApplications,
       message: `Tender deadline reached. Axiom Engine has combined the DB and Network key shares and unsealed ${unsealedApplications.length} applications.`
     });

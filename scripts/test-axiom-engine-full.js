@@ -104,20 +104,23 @@ async function runComprehensiveAxiomAudit() {
   // --- 2. LIVE BACKEND API & DATABASE INTEGRATION TESTS ---
   console.log('\n--- Phase 2: Live Backend API & Database Storage Tests ---');
 
-  // Fetch or create available tender
+  // Fetch or create available active tender
   let activeTender = null;
   const tendersRes = await fetch('http://localhost:3000/api/tenders');
   const tendersData = await tendersRes.json();
 
   if (tendersRes.ok && tendersData.tenders && tendersData.tenders.length > 0) {
-    activeTender = tendersData.tenders[0];
-  } else {
+    activeTender = tendersData.tenders.find(t => t.status !== 'AWARDED');
+  }
+
+  if (!activeTender) {
     // Auto-create tender for test
+    const testId = 'TND-AUDIT-' + Date.now();
     const createTenderRes = await fetch('http://localhost:3000/api/tenders', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        id: 'TND-AXIOM-AUDIT-001',
+        id: testId,
         title: 'National Expressway Corridor EPC Procurement',
         client: 'Ministry of Road Transport & Highways',
         location: 'Gujarat',
@@ -188,6 +191,20 @@ async function runComprehensiveAxiomAudit() {
   assert(unsealedRecord.payload.applicant.pan === 'AUDIT1234K', 'Decrypted PAN matches');
   assert(unsealedRecord.payload.bidDetails.bidAmount === '₹ 8.75 Crores', 'Decrypted financial bid matches');
   assert(unsealedRecord.payload.applicant.deviceFingerprint === 'dfp_hardware_audit_test_sha256_node_99', 'Decrypted device fingerprint matches');
+
+  // Automatic Test Cleanup: Remove temporary test application from MySQL
+  try {
+    const mysql = require('mysql2/promise');
+    const pool = mysql.createPool('mysql://root:puroonjay@127.0.0.1:3306/axiom');
+    await pool.query('DELETE FROM axiom_network_vault WHERE applicationId = ?', [apiSubmitData.applicationId]);
+    await pool.query('DELETE FROM tender_applications WHERE id = ?', [apiSubmitData.applicationId]);
+    if (activeTender.id.startsWith('TND-AUDIT-')) {
+      await pool.query('DELETE FROM tenders WHERE id = ?', [activeTender.id]);
+    }
+    await pool.end();
+  } catch (cleanErr) {
+    console.error('Test cleanup error (non-fatal):', cleanErr);
+  }
 
   console.log('\n================================================================');
   console.log(`  ALL ${passedTests}/${totalTests} TESTS PASSED WITH 100% VERIFICATION SUCCESS!  `);

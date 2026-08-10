@@ -19,6 +19,12 @@ interface Tender {
   value: string;
   closingDate: string;
   matchType: string;
+  status?: string;
+  winnerApplicantId?: string;
+  winnerName?: string;
+  winnerOrg?: string;
+  winnerAmount?: string;
+  awardedAt?: string;
 }
 
 interface Auction {
@@ -104,7 +110,13 @@ export default function AdminDashboard() {
       location: item.location || '',
       value: item.value || '',
       closingDate: item.closingDate || item.deadline || '',
-      matchType: item.matchType || item.match || 'High Match'
+      matchType: item.matchType || item.match || 'High Match',
+      status: item.status || 'OPEN',
+      winnerApplicantId: item.winnerApplicantId || undefined,
+      winnerName: item.winnerName || undefined,
+      winnerOrg: item.winnerOrg || undefined,
+      winnerAmount: item.winnerAmount || undefined,
+      awardedAt: item.awardedAt || undefined,
     }));
   };
 
@@ -292,6 +304,17 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (res.ok && data.success) {
         setTenderAppData(data);
+        if (data.tender) {
+          setSelectedAuditTender(prev => prev ? {
+            ...prev,
+            status: data.tender.status || prev.status,
+            winnerApplicantId: data.tender.winnerApplicantId || prev.winnerApplicantId,
+            winnerName: data.tender.winnerName || prev.winnerName,
+            winnerOrg: data.tender.winnerOrg || prev.winnerOrg,
+            winnerAmount: data.tender.winnerAmount || prev.winnerAmount,
+            awardedAt: data.tender.awardedAt || prev.awardedAt,
+          } : data.tender);
+        }
       }
     } catch (err) {
       console.error('Error loading tender applications:', err);
@@ -341,6 +364,73 @@ export default function AdminDashboard() {
     localStorage.removeItem('logged-in-admin');
     alert('Admin session terminated.');
     router.push('/admin/login');
+  };
+
+  // Add Tender handler
+  const handleAwardTender = async (tenderId: string, app: any) => {
+    const applicantName = app.payload?.applicant?.fullName || app.applicantName || 'Applicant';
+    const orgName = app.payload?.applicant?.orgName || applicantName;
+    const bidAmount = app.payload?.bidDetails?.bidAmount || 'Quoted Bid';
+
+    const confirmed = window.confirm(
+      `Award Tender Confirmation:\n\nDo you want to officially select and award Tender "${tenderId}" to:\n• Winner: ${orgName} (${applicantName})\n• Quoted Financial Bid: ${bidAmount}?`
+    );
+
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch('/api/tenders', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenderId,
+          applicantId: app.applicationId,
+          winnerName: applicantName,
+          winnerOrg: orgName,
+          winnerAmount: bidAmount,
+          status: 'AWARDED',
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert(`Tender ${tenderId} has been successfully awarded to ${orgName}!`);
+        // Update local state
+        setTenders((prev) =>
+          prev.map((t) =>
+            t.id === tenderId
+              ? {
+                  ...t,
+                  status: 'AWARDED',
+                  winnerApplicantId: app.applicationId,
+                  winnerName: applicantName,
+                  winnerOrg: orgName,
+                  winnerAmount: bidAmount,
+                }
+              : t
+          )
+        );
+        if (selectedAuditTender && selectedAuditTender.id === tenderId) {
+          setSelectedAuditTender((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  status: 'AWARDED',
+                  winnerApplicantId: app.applicationId,
+                  winnerName: applicantName,
+                  winnerOrg: orgName,
+                  winnerAmount: bidAmount,
+                }
+              : null
+          );
+        }
+      } else {
+        alert(data.error || 'Failed to award tender.');
+      }
+    } catch (e) {
+      console.error('Error awarding tender:', e);
+      alert('Network error while awarding tender.');
+    }
   };
 
   // Add Tender handler
@@ -1174,12 +1264,37 @@ export default function AdminDashboard() {
                                 </div>
                               </div>
 
-                              {app.payload?.applicant?.walletAddress && (
-                                <div className="p-2 bg-slate-50 rounded border border-slate-100 text-[10px] flex items-center justify-between">
-                                  <span className="text-slate-500 font-medium">Digital Wallet:</span>
-                                  <span className="font-mono text-slate-700 font-semibold">{app.payload.applicant.walletAddress}</span>
-                                </div>
-                              )}
+                              <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                                {selectedAuditTender.winnerApplicantId === app.applicationId || (selectedAuditTender.status === 'AWARDED' && selectedAuditTender.winnerApplicantId === app.applicationId) ? (
+                                  <span className="px-3 py-1.5 bg-emerald-600 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                                    </svg>
+                                    AWARDED WINNER FOR TENDER
+                                  </span>
+                                ) : selectedAuditTender.winnerApplicantId || selectedAuditTender.status === 'AWARDED' ? (
+                                  <button
+                                    disabled
+                                    className="px-3.5 py-1.5 bg-slate-100 text-slate-400 border border-slate-200 rounded-lg text-xs font-semibold cursor-not-allowed flex items-center gap-1.5"
+                                  >
+                                    <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
+                                    </svg>
+                                    Not Selected (Tender Awarded)
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAwardTender(selectedAuditTender.id, app)}
+                                    className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                                  >
+                                    <svg className="w-4 h-4 text-emerald-200" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                                    </svg>
+                                    Accept Application & Award Tender
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
