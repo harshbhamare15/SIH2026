@@ -39,6 +39,17 @@ interface Auction {
   type?: string;
   category?: string;
   mode?: string;
+  adminWalletAddress?: string;
+  winnerBidderId?: string;
+  winnerName?: string;
+  winnerOrg?: string;
+  winnerAmount?: string;
+  winnerEthAmount?: string;
+  concludedAt?: string;
+  settlementExpiresAt?: string;
+  settlementTxHash?: string;
+  settlementStatus?: string;
+  endsAt?: string;
 }
 
 export default function AdminDashboard() {
@@ -58,6 +69,7 @@ export default function AdminDashboard() {
   const [isLoadingAuctions, setIsLoadingAuctions] = useState(false);
   const [isSubmittingAuction, setIsSubmittingAuction] = useState(false);
   const [isDeletingAuction, setIsDeletingAuction] = useState(false);
+  const [isConcludingAuction, setIsConcludingAuction] = useState(false);
   const [selectedLiveAuction, setSelectedLiveAuction] = useState<Auction | null>(null);
   const [liveAuctionData, setLiveAuctionData] = useState<any | null>(null);
   const [isLoadingLiveAuction, setIsLoadingLiveAuction] = useState(false);
@@ -97,9 +109,10 @@ export default function AdminDashboard() {
   const [auctionMinutes, setAuctionMinutes] = useState('5');
   const [auctionSeconds, setAuctionSeconds] = useState('0');
   const [auctionCategory, setAuctionCategory] = useState('Consumables & Office Supplies');
+  const [adminWalletAddress, setAdminWalletAddress] = useState('0x71C2B9A23E45Fc49A109D90d0bFd5B59e99284F7');
+  const [copiedWallet, setCopiedWallet] = useState(false);
 
-  // Validate session on mount
-  // Normalizers to convert user dashboard schema schemas to Admin dashboard schemas
+  // Normalizers to convert database schemas to Admin dashboard models
   const normalizeAdminTenders = (raw: any[]): Tender[] => {
     return raw.map(item => ({
       id: item.id,
@@ -125,12 +138,23 @@ export default function AdminDashboard() {
       client: item.client || '',
       location: item.location || '',
       startingValue: item.startingValue || `₹${(item.lowestBid || 12500).toLocaleString()}`,
-      duration: item.duration || item.timeLeft || '03:45 mins',
-      status: item.status === 'active' || item.status === 'placed' ? 'Live' : (item.status || 'Live'),
+      duration: item.duration || item.timeLeft || '05:00 mins',
+      status: item.status || 'Live',
       lowestBid: typeof item.lowestBid === 'number' ? item.lowestBid : undefined,
-      type: item.type || 'sub',
-      category: item.category || 'General',
+      type: item.type || 'arena',
+      category: item.category || 'Consumables & Office Supplies',
       mode: item.mode || 'Reverse',
+      adminWalletAddress: item.adminWalletAddress || '0x71C2B9A23E45Fc49A109D90d0bFd5B59e99284F7',
+      winnerBidderId: item.winnerBidderId || item.winnerApplicantId,
+      winnerName: item.winnerName,
+      winnerOrg: item.winnerOrg,
+      winnerAmount: item.winnerAmount,
+      winnerEthAmount: item.winnerEthAmount,
+      concludedAt: item.concludedAt,
+      settlementExpiresAt: item.settlementExpiresAt,
+      settlementTxHash: item.settlementTxHash,
+      settlementStatus: item.settlementStatus || 'PENDING',
+      endsAt: item.endsAt,
     }));
   };
 
@@ -640,6 +664,98 @@ export default function AdminDashboard() {
     }
   };
 
+  // Admin MetaMask Wallet Connect Handler
+  const connectAdminMetaMask = async () => {
+    if (typeof window !== 'undefined' && (window as any).ethereum) {
+      try {
+        const accounts = await (window as any).ethereum.request({ method: 'eth_requestAccounts' });
+        if (accounts && accounts[0]) {
+          setAdminWalletAddress(accounts[0]);
+          alert(`MetaMask Wallet Connected Successfully!\n\nReceiving Address:\n${accounts[0]}\n\nThis address will receive incoming ETH settlements when auctions are concluded.`);
+        }
+      } catch (err: any) {
+        alert('MetaMask connection error: ' + (err.message || 'Request cancelled'));
+      }
+    } else {
+      alert('MetaMask extension not detected in your browser.\n\nYou can manually paste your Ethereum receiving wallet address (e.g. 0x...).');
+    }
+  };
+
+  const handleCopyWallet = () => {
+    if (!adminWalletAddress) return;
+    try {
+      navigator.clipboard.writeText(adminWalletAddress);
+      setCopiedWallet(true);
+      setTimeout(() => setCopiedWallet(false), 2000);
+    } catch (e) {
+      console.error('Failed to copy wallet address:', e);
+    }
+  };
+
+  // Conclude Auction & Open 20-Min Settlement Window Handler
+  const handleConcludeAuction = async (auctionId: string) => {
+    if (!confirm(`Are you sure you want to conclude Auction "${auctionId}" now?\n\nThis will lock the current H1 leading bidder as the winner and open the 20-minute MetaMask ETH settlement window.`)) return;
+
+    try {
+      setIsConcludingAuction(true);
+      const res = await fetch('/api/auctions', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          auctionId,
+          action: 'conclude',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to conclude auction.');
+        return;
+      }
+
+      alert(`🏆 Auction Concluded & Contract Awarded!\n\nWinner: ${data.auction.winnerName || 'H1 Leading Bidder'}\nAmount: ${data.auction.winnerAmount} (${data.auction.winnerEthAmount})\n\n20-minute settlement window is now open for MetaMask payment.`);
+
+      // Update state
+      const updated = auctions.map(a => a.id === auctionId ? { ...a, ...data.auction } : a);
+      setAuctions(updated);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('user-auctions', JSON.stringify(updated));
+      }
+      if (selectedLiveAuction && selectedLiveAuction.id === auctionId) {
+        setSelectedLiveAuction(prev => prev ? { ...prev, ...data.auction } : null);
+      }
+      fetchLiveAuctionBids(auctionId);
+    } catch (err: any) {
+      alert('Error concluding auction: ' + (err.message || 'Network error'));
+    } finally {
+      setIsConcludingAuction(false);
+    }
+  };
+
+  // Helper to calculate 20-min settlement countdown
+  const getAuctionSettlementCountdown = (a: Auction) => {
+    if (a.settlementStatus === 'PAID') {
+      return { isExpired: false, isPaid: true, text: 'Settlement Completed (Paid)', formatted: 'PAID' };
+    }
+    if (!a.settlementExpiresAt) {
+      return { isExpired: false, isPaid: false, text: '20:00 mins window', formatted: '20:00' };
+    }
+
+    const expTime = new Date(a.settlementExpiresAt).getTime();
+    const diff = expTime - now;
+
+    if (diff <= 0) {
+      return { isExpired: true, isPaid: false, text: 'Settlement Window Expired', formatted: '00:00' };
+    }
+
+    const totalSecs = Math.floor(diff / 1000);
+    const mins = Math.floor(totalSecs / 60);
+    const secs = totalSecs % 60;
+    const formatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+
+    return { isExpired: false, isPaid: false, text: `${formatted} remaining to settle`, formatted };
+  };
+
   // Add Auction handler
   const handleAddAuction = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -654,6 +770,8 @@ export default function AdminDashboard() {
     const m = parseInt(auctionMinutes || '0', 10);
     const s = parseInt(auctionSeconds || '0', 10);
 
+    const totalSecs = (d * 86400) + (h * 3600) + (m * 60) + s;
+
     let computedDuration = '';
     if (d > 0) computedDuration += `${d}d `;
     if (h > 0 || d > 0) computedDuration += `${String(h).padStart(2, '0')}:`;
@@ -666,10 +784,12 @@ export default function AdminDashboard() {
       location: auctionLocation.trim(),
       startingValue: auctionValue.trim().startsWith('₹') ? auctionValue.trim() : `₹${auctionValue.trim()}`,
       duration: computedDuration.trim() || '05:00 mins',
+      durationSeconds: totalSecs > 0 ? totalSecs : 300,
       status: 'Live',
       type: 'arena',
       category: auctionCategory,
       mode: 'Reverse',
+      adminWalletAddress: adminWalletAddress.trim() || '0x71C2B9A23E45Fc49A109D90d0bFd5B59e99284F7',
     };
 
     try {
@@ -694,7 +814,7 @@ export default function AdminDashboard() {
       if (typeof window !== 'undefined') {
         localStorage.setItem('user-auctions', JSON.stringify(updated));
       }
-      alert('Auction added and published to database successfully!');
+      alert('Auction published successfully with receiving MetaMask wallet configured!');
 
       // Clear inputs
       setAuctionId('');
@@ -1092,13 +1212,33 @@ export default function AdminDashboard() {
                       {/* Header */}
                       <div className="flex justify-between items-start gap-4">
                         <div>
-                          <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">AUCTION ID: {a.id}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-mono">AUCTION ID: {a.id}</span>
+                            {a.adminWalletAddress && (
+                              <span className="text-[9px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200 px-1.5 py-0.2 rounded" title={a.adminWalletAddress}>
+                                🦊 Receiver: {a.adminWalletAddress.substring(0, 6)}...{a.adminWalletAddress.substring(a.adminWalletAddress.length - 4)}
+                              </span>
+                            )}
+                          </div>
                           <h3 className="text-sm font-bold text-slate-800 mt-1 line-clamp-1">{a.title}</h3>
                         </div>
-                        <span className="bg-rose-50 text-rose-700 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1.5 animate-pulse">
-                          <span className="w-1.5 h-1.5 bg-rose-600 rounded-full"></span>
-                          {a.status}
-                        </span>
+
+                        {a.status === 'CONCLUDED' || a.status === 'AWARDED' ? (
+                          <span className="bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-2xs">
+                            <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping"></span>
+                            <span>🏆 AWARDED (20m Window)</span>
+                          </span>
+                        ) : a.status === 'SETTLED' ? (
+                          <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1.5 shadow-2xs">
+                            <span>✓</span>
+                            <span>ON-CHAIN SETTLED</span>
+                          </span>
+                        ) : (
+                          <span className="bg-rose-50 text-rose-700 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1.5 animate-pulse">
+                            <span className="w-1.5 h-1.5 bg-rose-600 rounded-full"></span>
+                            {a.status}
+                          </span>
+                        )}
                       </div>
 
                       {/* Meta parameters */}
@@ -1112,10 +1252,32 @@ export default function AdminDashboard() {
                           <span className="font-semibold text-slate-700">{a.location}</span>
                         </div>
                         <div>
-                          <span className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Current Lowest Bid</span>
+                          <span className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Current Benchmark</span>
                           <span className="font-bold text-slate-800">{a.startingValue}</span>
                         </div>
                       </div>
+
+                      {/* Winner & Settlement Strip if Concluded */}
+                      {(a.status === 'CONCLUDED' || a.status === 'SETTLED') && (
+                        <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-amber-500 font-bold">🏆</span>
+                            <span className="font-bold text-slate-800">{a.winnerName || 'H1 Bidder'}</span>
+                            <span className="text-slate-400 font-mono text-[10px]">({a.winnerOrg || 'Contractor'})</span>
+                          </div>
+                          <div className="flex items-center gap-2 font-mono font-bold text-xs">
+                            <span className="text-emerald-700">{a.winnerAmount}</span>
+                            <span className="text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded text-[10px]">
+                              {a.winnerEthAmount || '0.0004 ETH'}
+                            </span>
+                            <span className={`text-[10px] px-2 py-0.5 rounded-full font-sans font-bold ${
+                              a.settlementStatus === 'PAID' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-200 text-amber-900 animate-pulse'
+                            }`}>
+                              {a.settlementStatus === 'PAID' ? '✓ Paid' : getAuctionSettlementCountdown(a).formatted}
+                            </span>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Footer */}
                       <div className="flex flex-wrap justify-between items-center border-t border-slate-100 pt-3 gap-2.5 text-xs">
@@ -1139,6 +1301,19 @@ export default function AdminDashboard() {
                             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                             <span>Live Track & Bids Room</span>
                           </button>
+
+                          {a.status === 'Live' && (
+                            <button
+                              type="button"
+                              onClick={() => handleConcludeAuction(a.id)}
+                              disabled={isConcludingAuction}
+                              className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs flex items-center gap-1"
+                              title="Conclude Auction and open 20-min settlement window"
+                            >
+                              <span>🏆</span>
+                              <span>Conclude</span>
+                            </button>
+                          )}
 
                           <button
                             type="button"
@@ -1167,6 +1342,34 @@ export default function AdminDashboard() {
               </h2>
 
               <form onSubmit={handleAddAuction} className="space-y-4">
+                {/* Admin Receiving Wallet */}
+                <div>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>🦊</span>
+                      <span>Admin Receiving Wallet (MetaMask ETH)</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={connectAdminMetaMask}
+                      className="text-[10px] font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2 py-0.5 rounded border border-amber-200 transition-colors cursor-pointer"
+                    >
+                      Connect Wallet
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    required
+                    value={adminWalletAddress}
+                    onChange={(e) => setAdminWalletAddress(e.target.value)}
+                    placeholder="0x..."
+                    className="w-full bg-[#f8fafc] border border-slate-200 focus:border-[#1b4e7e] rounded-lg py-2 px-3 text-xs font-mono font-bold text-slate-800 focus:outline-none transition-colors"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">
+                    All winning bidders will automatically submit their final ETH auction settlements to this address.
+                  </p>
+                </div>
+
                 <div>
                   <label className="text-[10px] font-extrabold text-slate-400 block uppercase mb-1 tracking-wider">Auction ID</label>
                   <input
@@ -1703,13 +1906,81 @@ export default function AdminDashboard() {
             {/* Scrollable Content Body */}
             <div className="p-6 overflow-y-auto space-y-6 flex-1 bg-slate-50/50">
               
+              {/* Concluded / Settlement Status Banner */}
+              {(selectedLiveAuction.status === 'CONCLUDED' || selectedLiveAuction.status === 'SETTLED' || liveAuctionData?.auction?.status === 'CONCLUDED' || liveAuctionData?.auction?.status === 'SETTLED') && (
+                <div className="bg-gradient-to-r from-amber-500/10 via-amber-400/15 to-emerald-500/10 border-2 border-amber-300 rounded-2xl p-5 shadow-xs space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-amber-200/80 pb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">🏆</span>
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 block">
+                          AUCTION CONCLUDED &amp; CONTRACT AWARDED
+                        </span>
+                        <h4 className="text-base font-black text-slate-900">
+                          Winner: {selectedLiveAuction.winnerName || liveAuctionData?.auction?.winnerName || liveAuctionData?.stats?.leadingBidder?.bidderName || 'Leading Contractor'}
+                        </h4>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-600">Settlement Status:</span>
+                      {(selectedLiveAuction.settlementStatus === 'PAID' || liveAuctionData?.auction?.settlementStatus === 'PAID') ? (
+                        <span className="px-3 py-1 bg-emerald-600 text-white font-black text-xs rounded-full shadow-2xs flex items-center gap-1.5">
+                          <span>✓</span>
+                          <span>PAID ON-CHAIN VIA METAMASK</span>
+                        </span>
+                      ) : (
+                        <span className="px-3 py-1 bg-amber-500 text-white font-black text-xs rounded-full shadow-2xs flex items-center gap-1.5 animate-pulse">
+                          <span>⏱️</span>
+                          <span>20-MIN SETTLEMENT WINDOW OPEN</span>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                    <div className="bg-white/80 border border-amber-200 rounded-xl p-3">
+                      <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Winning Bid Value</span>
+                      <div className="text-lg font-black text-emerald-700 font-mono mt-0.5">
+                        {selectedLiveAuction.winnerAmount || `₹${(liveAuctionData?.stats?.currentHighestBid || selectedLiveAuction.lowestBid || 0).toLocaleString()}`}
+                      </div>
+                      <span className="text-[11px] text-amber-800 font-mono font-bold">
+                        ≈ {selectedLiveAuction.winnerEthAmount || liveAuctionData?.auction?.winnerEthAmount || '0.0004 ETH'}
+                      </span>
+                    </div>
+
+                    <div className="bg-white/80 border border-amber-200 rounded-xl p-3">
+                      <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Receiving Admin Wallet</span>
+                      <div className="text-xs font-bold text-slate-800 font-mono mt-1 truncate" title={selectedLiveAuction.adminWalletAddress || '0x71C2B9A23E45Fc49A109D90d0bFd5B59e99284F7'}>
+                        {selectedLiveAuction.adminWalletAddress || '0x71C2B9A23E45Fc49A109D90d0bFd5B59e99284F7'}
+                      </div>
+                      <span className="text-[10px] text-emerald-700 font-semibold block mt-0.5">
+                        Verified Receiver Treasury
+                      </span>
+                    </div>
+
+                    <div className="bg-white/80 border border-amber-200 rounded-xl p-3">
+                      <span className="text-[10px] font-extrabold uppercase text-slate-400 block">Settlement Timer (20 Mins)</span>
+                      <div className="text-lg font-black font-mono mt-0.5 text-amber-900">
+                        {getAuctionSettlementCountdown(selectedLiveAuction).text}
+                      </div>
+                      {(selectedLiveAuction.settlementTxHash || liveAuctionData?.auction?.settlementTxHash) && (
+                        <span className="text-[10px] text-slate-500 font-mono block mt-0.5 truncate">
+                          Tx: {selectedLiveAuction.settlementTxHash || liveAuctionData?.auction?.settlementTxHash}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* 4 Stat Overview Cards */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
                   <div className="flex items-center justify-between text-slate-400">
                     <span className="text-[10px] font-extrabold uppercase tracking-wider">Buyers Entered</span>
                     <svg className="w-4 h-4 text-[#1b4e7e]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                     </svg>
                   </div>
                   <div className="text-2xl font-black text-slate-800 mt-2">
@@ -1766,7 +2037,7 @@ export default function AdminDashboard() {
                       onClick={() => setLiveAuctionTab('leaderboard')}
                       className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${liveAuctionTab === 'leaderboard' ? 'bg-[#1b4e7e] text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'}`}
                     >
-                      Live Leaderboard & Ranks ({liveAuctionData?.leaderboard?.length || 0})
+                      Live Leaderboard &amp; Ranks ({liveAuctionData?.leaderboard?.length || 0})
                     </button>
                     <button
                       type="button"
@@ -1832,7 +2103,7 @@ export default function AdminDashboard() {
                                       H1 LEADING
                                     </span>
                                   ) : (
-                                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold">
+                                    <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold">
                                       OUTBID (H{idx + 1})
                                     </span>
                                   )}
@@ -1846,7 +2117,7 @@ export default function AdminDashboard() {
                       <div className="py-12 text-center text-slate-400 space-y-2">
                         <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
                           <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                           </svg>
                         </div>
                         <p className="text-sm font-bold text-slate-600">Waiting for buyers to enter and submit reverse bids...</p>
@@ -1907,11 +2178,29 @@ export default function AdminDashboard() {
             {/* Modal Actions Footer */}
             <div className="bg-slate-50 border-t border-slate-200 p-4 px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
               <div className="text-xs text-slate-500 font-medium flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                <span>Active Live Reverse Bidding Session</span>
+                <span className={`w-2 h-2 rounded-full ${selectedLiveAuction.status === 'CONCLUDED' ? 'bg-amber-500 animate-ping' : selectedLiveAuction.status === 'SETTLED' ? 'bg-emerald-500' : 'bg-emerald-500'}`}></span>
+                <span>
+                  {selectedLiveAuction.status === 'CONCLUDED'
+                    ? 'Auction Concluded • 20-Min Settlement in Progress'
+                    : selectedLiveAuction.status === 'SETTLED'
+                    ? 'Auction Concluded & Settled On-Chain'
+                    : 'Active Live Reverse Bidding Session'}
+                </span>
               </div>
 
               <div className="flex items-center gap-3 w-full sm:w-auto">
+                {selectedLiveAuction.status === 'Live' && (
+                  <button
+                    type="button"
+                    onClick={() => handleConcludeAuction(selectedLiveAuction.id)}
+                    disabled={isConcludingAuction}
+                    className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
+                  >
+                    <span>🏆</span>
+                    <span>{isConcludingAuction ? 'Concluding...' : 'Conclude & Award Auction Now'}</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => fetchLiveAuctionBids(selectedLiveAuction.id)}

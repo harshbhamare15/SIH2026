@@ -256,5 +256,43 @@ export async function ensureTablesExist(): Promise<void> {
     console.error('Column migration error in users:', e);
   }
 
+  // Safe migration for auctions table (Admin Wallet, Conclusion, and 20-min Settlement)
+  try {
+    const [adminWalletCols] = await db.query<any[]>('SHOW COLUMNS FROM auctions LIKE "adminWalletAddress"');
+    if (!adminWalletCols || adminWalletCols.length === 0) {
+      await db.query('ALTER TABLE auctions ADD COLUMN adminWalletAddress VARCHAR(255) NULL');
+    }
+    const [winnerEthCols] = await db.query<any[]>('SHOW COLUMNS FROM auctions LIKE "winnerEthAmount"');
+    if (!winnerEthCols || winnerEthCols.length === 0) {
+      await db.query('ALTER TABLE auctions ADD COLUMN winnerEthAmount VARCHAR(100) NULL');
+    }
+    const [winnerBidderCols] = await db.query<any[]>('SHOW COLUMNS FROM auctions LIKE "winnerBidderId"');
+    if (!winnerBidderCols || winnerBidderCols.length === 0) {
+      await db.query('ALTER TABLE auctions ADD COLUMN winnerBidderId VARCHAR(100) NULL');
+    }
+    const [concludedCols] = await db.query<any[]>('SHOW COLUMNS FROM auctions LIKE "concludedAt"');
+    if (!concludedCols || concludedCols.length === 0) {
+      await db.query('ALTER TABLE auctions ADD COLUMN concludedAt TIMESTAMP NULL');
+    }
+    const [settlementExpCols] = await db.query<any[]>('SHOW COLUMNS FROM auctions LIKE "settlementExpiresAt"');
+    if (!settlementExpCols || settlementExpCols.length === 0) {
+      await db.query('ALTER TABLE auctions ADD COLUMN settlementExpiresAt TIMESTAMP NULL');
+    }
+    const [settlementTxCols] = await db.query<any[]>('SHOW COLUMNS FROM auctions LIKE "settlementTxHash"');
+    if (!settlementTxCols || settlementTxCols.length === 0) {
+      await db.query('ALTER TABLE auctions ADD COLUMN settlementTxHash VARCHAR(128) NULL');
+    }
+    const [settlementStatCols] = await db.query<any[]>('SHOW COLUMNS FROM auctions LIKE "settlementStatus"');
+    if (!settlementStatCols || settlementStatCols.length === 0) {
+      await db.query('ALTER TABLE auctions ADD COLUMN settlementStatus VARCHAR(50) NOT NULL DEFAULT "PENDING"');
+    }
+    const [endsAtCols] = await db.query<any[]>('SHOW COLUMNS FROM auctions LIKE "endsAt"');
+    if (!endsAtCols || endsAtCols.length === 0) {
+      await db.query('ALTER TABLE auctions ADD COLUMN endsAt TIMESTAMP NULL');
+    }
+  } catch (e) {
+    console.error('Column migration error in auctions:', e);
+  }
+
   dbInitialized = true;
 }
