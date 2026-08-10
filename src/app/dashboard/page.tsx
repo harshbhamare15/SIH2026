@@ -2849,7 +2849,7 @@ export default function DashboardPage() {
                 </h2>
 
                 <p className="text-sm text-slate-500 mt-1">
-                  Track all tenders where you have submitted an encrypted application.
+                  Track all tenders where you have submitted applications.
                 </p>
               </div>
 
@@ -3413,7 +3413,7 @@ export default function DashboardPage() {
                 {/* Bid Value Input Form from Image 2 */}
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-widest mb-1.5">
-                    Enter Your Bid Value (in Lakhs)
+                    Enter Your Bid Value (in Crores)
                   </label>
                   <div className="relative rounded-md shadow-sm">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 font-bold text-xs">
@@ -3429,7 +3429,7 @@ export default function DashboardPage() {
                       placeholder="e.g. 45.80"
                     />
                     <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400 font-bold text-[10px] uppercase">
-                      lakhs
+                      Crores
                     </div>
                   </div>
                   <p className="text-[10px] text-slate-400 mt-1 leading-snug">
