@@ -43,6 +43,16 @@ export default function AdminDashboard() {
   const [selectedAuditTender, setSelectedAuditTender] = useState<Tender | null>(null);
   const [isDeletingTender, setIsDeletingTender] = useState(false);
 
+  // Application & Axiom Cryptographic Engine State
+  const [applicationSummary, setApplicationSummary] = useState<Record<string, any>>({});
+  const [tenderAppData, setTenderAppData] = useState<any | null>(null);
+  const [isLoadingAppData, setIsLoadingAppData] = useState(false);
+  const [isUnsealing, setIsUnsealing] = useState(false);
+
+  // Live Countdown & Timelock Engine State
+  const [now, setNow] = useState(Date.now());
+  const [tenderDeadlines, setTenderDeadlines] = useState<Record<string, number>>({});
+
   const [auctions, setAuctions] = useState<Auction[]>([
     {
       id: 'OSD/7734',
@@ -70,7 +80,10 @@ export default function AdminDashboard() {
   const [tenderClient, setTenderClient] = useState('');
   const [tenderLocation, setTenderLocation] = useState('');
   const [tenderValue, setTenderValue] = useState('');
-  const [tenderClosing, setTenderClosing] = useState('');
+  const [tenderDays, setTenderDays] = useState('0');
+  const [tenderHours, setTenderHours] = useState('0');
+  const [tenderMinutes, setTenderMinutes] = useState('2');
+  const [tenderSeconds, setTenderSeconds] = useState('0');
   const [tenderMatch, setTenderMatch] = useState('High Match');
 
   // Form Coordinates for Adding Auctions
@@ -118,6 +131,19 @@ export default function AdminDashboard() {
         setAdmin(JSON.parse(stored));
       }
 
+      // Fetch application counts summary for all tenders
+      const loadAppSummary = async () => {
+        try {
+          const res = await fetch('/api/applications');
+          const data = await res.json();
+          if (res.ok && data.summary) {
+            setApplicationSummary(data.summary);
+          }
+        } catch (err) {
+          console.error('Error fetching application summary:', err);
+        }
+      };
+
       // Fetch persistent live tenders from MySQL backend
       const loadTenders = async () => {
         try {
@@ -125,8 +151,32 @@ export default function AdminDashboard() {
           const res = await fetch('/api/tenders');
           const data = await res.json();
           if (res.ok && Array.isArray(data.tenders)) {
-            setTenders(normalizeAdminTenders(data.tenders));
+            const normalized = normalizeAdminTenders(data.tenders);
+            setTenders(normalized);
             localStorage.setItem('user-tenders', JSON.stringify(data.tenders));
+
+            // Initialize deadlines for tenders if not set
+            const savedDeadlines = localStorage.getItem('axiom_tender_deadlines');
+            let deadlineMap: Record<string, number> = savedDeadlines ? JSON.parse(savedDeadlines) : {};
+            normalized.forEach((t) => {
+              if (!deadlineMap[t.id]) {
+                const str = t.closingDate || '';
+                const num = parseFloat(str);
+                if (str.includes('min') || str.includes('sec')) {
+                  const mins = !isNaN(num) ? num : 2;
+                  deadlineMap[t.id] = Date.now() + mins * 60 * 1000;
+                } else {
+                  const parsed = new Date(str).getTime();
+                  if (!isNaN(parsed) && parsed > Date.now()) {
+                    deadlineMap[t.id] = parsed;
+                  } else {
+                    deadlineMap[t.id] = Date.now() + 3 * 60 * 1000; // Default 3 min demo timer
+                  }
+                }
+              }
+            });
+            setTenderDeadlines(deadlineMap);
+            localStorage.setItem('axiom_tender_deadlines', JSON.stringify(deadlineMap));
           } else {
             const savedTenders = localStorage.getItem('user-tenders');
             if (savedTenders) {
@@ -145,6 +195,7 @@ export default function AdminDashboard() {
       };
 
       loadTenders();
+      loadAppSummary();
 
       const savedAuctions = localStorage.getItem('user-auctions');
       if (savedAuctions) {
@@ -157,6 +208,135 @@ export default function AdminDashboard() {
     }
   }, [router]);
 
+  // Real-time ticking interval for live countdowns
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setNow(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Countdown resolver for any tender
+  const getTenderCountdown = (t: Tender) => {
+    const target = tenderDeadlines[t.id] || (new Date(t.closingDate).getTime() > 0 ? new Date(t.closingDate).getTime() : 0);
+    if (!target) return { isExpired: false, text: t.closingDate, diff: 999999, days: '00', hours: '00', mins: '00', secs: '00' };
+
+    const diff = target - now;
+    if (diff <= 0) {
+      return {
+        isExpired: true,
+        diff: 0,
+        days: '00',
+        hours: '00',
+        mins: '00',
+        secs: '00',
+        text: '00d : 00h : 00m : 00s • Deadline Elapsed',
+        formatted: '00d : 00h : 00m : 00s',
+        badgeClass: 'bg-emerald-50 text-emerald-800 border-emerald-200'
+      };
+    }
+
+    const totalSecs = Math.floor(diff / 1000);
+    const days = Math.floor(totalSecs / 86400);
+    const hours = Math.floor((totalSecs % 86400) / 3600);
+    const mins = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
+
+    const dStr = days.toString().padStart(2, '0');
+    const hStr = hours.toString().padStart(2, '0');
+    const mStr = mins.toString().padStart(2, '0');
+    const sStr = secs.toString().padStart(2, '0');
+
+    const formatted = `${dStr}d : ${hStr}h : ${mStr}m : ${sStr}s`;
+
+    return {
+      isExpired: false,
+      diff,
+      days: dStr,
+      hours: hStr,
+      mins: mStr,
+      secs: sStr,
+      text: `${formatted} remaining`,
+      formatted,
+      badgeClass: diff < 60000 ? 'bg-rose-50 text-rose-800 border-rose-200 animate-pulse' : 'bg-amber-50 text-amber-900 border-amber-200'
+    };
+  };
+
+  // Automated Timelock Unseal: Trigger when deadline countdown reaches 0
+  useEffect(() => {
+    if (selectedAuditTender && tenderAppData && !tenderAppData.isDeadlinePassed && !isUnsealing) {
+      const countdown = getTenderCountdown(selectedAuditTender);
+      if (countdown.isExpired) {
+        // Automatically reveal & unseal bids without requiring user click!
+        handleTriggerUnseal(selectedAuditTender.id, true, true);
+      }
+    }
+  }, [now, selectedAuditTender, tenderAppData, isUnsealing]);
+
+  // Set custom fast-forward test timer for demo
+  const setTestTimer = (tenderId: string, seconds: number) => {
+    const newTarget = Date.now() + seconds * 1000;
+    const updated = { ...tenderDeadlines, [tenderId]: newTarget };
+    setTenderDeadlines(updated);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('axiom_tender_deadlines', JSON.stringify(updated));
+    }
+  };
+
+  // Fetch specific tender applications when audit modal opens
+  const fetchTenderApplications = async (tenderId: string, force = false) => {
+    setIsLoadingAppData(true);
+    try {
+      const url = `/api/applications?tenderId=${encodeURIComponent(tenderId)}${force ? '&forceUnseal=true' : ''}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTenderAppData(data);
+      }
+    } catch (err) {
+      console.error('Error loading tender applications:', err);
+    } finally {
+      setIsLoadingAppData(false);
+    }
+  };
+
+  const handleOpenAudit = (t: Tender) => {
+    setSelectedAuditTender(t);
+    setTenderAppData(null);
+    const countdown = getTenderCountdown(t);
+    fetchTenderApplications(t.id, countdown.isExpired);
+  };
+
+  const handleTriggerUnseal = async (tenderId: string, force = true, isAuto = false) => {
+    setIsUnsealing(true);
+    try {
+      const res = await fetch('/api/applications/unseal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenderId, forceUnseal: force })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        if (!isAuto) {
+          alert(`Application Review Window Open\n\n${data.unsealedCount} applications are now available for evaluation.`);
+        }
+        fetchTenderApplications(tenderId, true);
+        // Refresh summary
+        const summaryRes = await fetch('/api/applications');
+        const summaryData = await summaryRes.json();
+        if (summaryRes.ok && summaryData.summary) {
+          setApplicationSummary(summaryData.summary);
+        }
+      } else if (!isAuto) {
+        alert(data.error || 'Failed to retrieve applications.');
+      }
+    } catch (err) {
+      console.error('Unseal error:', err);
+    } finally {
+      setIsUnsealing(false);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('logged-in-admin');
     alert('Admin session terminated.');
@@ -167,10 +347,19 @@ export default function AdminDashboard() {
   const handleAddTender = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!tenderId || !tenderTitle || !tenderClient || !tenderLocation || !tenderValue || !tenderClosing) {
+    if (!tenderId || !tenderTitle || !tenderClient || !tenderLocation || !tenderValue) {
       alert('Please fill out all fields in the Tender form.');
       return;
     }
+
+    const d = parseInt(tenderDays) || 0;
+    const h = parseInt(tenderHours) || 0;
+    const m = parseInt(tenderMinutes) || 0;
+    const s = parseInt(tenderSeconds) || 0;
+    const totalSec = d * 86400 + h * 3600 + m * 60 + s;
+    const durationSeconds = totalSec > 0 ? totalSec : 120;
+    const targetEpoch = Date.now() + durationSeconds * 1000;
+    const closingString = `${d.toString().padStart(2, '0')}d : ${h.toString().padStart(2, '0')}h : ${m.toString().padStart(2, '0')}m : ${s.toString().padStart(2, '0')}s`;
 
     const newTender: Tender = {
       id: tenderId.trim(),
@@ -178,7 +367,7 @@ export default function AdminDashboard() {
       client: tenderClient.trim(),
       location: tenderLocation.trim(),
       value: tenderValue.trim(),
-      closingDate: tenderClosing.trim(),
+      closingDate: closingString,
       matchType: tenderMatch || 'High Match'
     };
 
@@ -203,6 +392,13 @@ export default function AdminDashboard() {
       if (typeof window !== 'undefined') {
         localStorage.setItem('user-tenders', JSON.stringify(updated));
       }
+
+      // Store deadline timestamp
+      const updatedDeadlines = { ...tenderDeadlines, [publishedTender.id]: targetEpoch };
+      setTenderDeadlines(updatedDeadlines);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('axiom_tender_deadlines', JSON.stringify(updatedDeadlines));
+      }
       
       // Clear inputs
       setTenderId('');
@@ -210,7 +406,10 @@ export default function AdminDashboard() {
       setTenderClient('');
       setTenderLocation('');
       setTenderValue('');
-      setTenderClosing('');
+      setTenderDays('0');
+      setTenderHours('0');
+      setTenderMinutes('2');
+      setTenderSeconds('0');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Network error';
       alert('Publish tender error: ' + msg);
@@ -382,7 +581,7 @@ export default function AdminDashboard() {
                     </div>
 
                     {/* Meta parameters */}
-                    <div className="grid grid-cols-3 gap-4 pt-1 text-xs">
+                    <div className="grid grid-cols-4 gap-3 pt-1 text-xs">
                       <div>
                         <span className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Client</span>
                         <span className="font-semibold text-slate-700 line-clamp-1">{t.client}</span>
@@ -395,20 +594,48 @@ export default function AdminDashboard() {
                         <span className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Estimated Value</span>
                         <span className="font-bold text-slate-800">{t.value}</span>
                       </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Applications</span>
+                        <span className="inline-flex items-center gap-1 font-bold text-blue-900 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                          {applicationSummary[t.id]?.totalApplications || 0} Received
+                        </span>
+                      </div>
                     </div>
 
                     {/* Footer */}
-                    <div className="flex justify-between items-center border-t border-slate-100 pt-3 text-xs">
-                      <span className="text-slate-500 font-medium">Closes in: <span className="font-bold text-slate-700">{t.closingDate}</span></span>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-t border-slate-100 pt-3 gap-2 text-xs">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-slate-400 font-medium text-[11px]">Submission Deadline:</span>
+                        {getTenderCountdown(t).isExpired ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200/80 font-medium text-[11px] shadow-2xs">
+                            <svg className="w-3 h-3 text-emerald-600 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            <span className="font-semibold">Deadline Elapsed</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-50 text-slate-800 border border-slate-200 shadow-2xs text-[11px]">
+                            <svg className="w-3 h-3 text-[#1b4e7e] shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                            </svg>
+                            <span className="font-mono font-bold text-slate-900 tracking-tight">
+                              {getTenderCountdown(t).formatted}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-medium">remaining</span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse"></span>
+                          </span>
+                        )}
+                      </div>
+
                       <button 
                         type="button"
-                        onClick={() => setSelectedAuditTender(t)}
-                        className="text-xs font-bold text-[#1b4e7e] hover:text-[#133c62] bg-[#1b4e7e]/10 hover:bg-[#1b4e7e]/20 px-3 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5"
+                        onClick={() => handleOpenAudit(t)}
+                        className="text-xs font-bold text-[#1b4e7e] hover:text-[#133c62] bg-[#1b4e7e]/10 hover:bg-[#1b4e7e]/20 px-3.5 py-1.5 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 self-end sm:self-auto"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
-                        Audit Details
+                        {getTenderCountdown(t).isExpired ? 'Review Applications' : 'Audit & Applications'} ({applicationSummary[t.id]?.totalApplications || 0})
                       </button>
                     </div>
 
@@ -489,23 +716,66 @@ export default function AdminDashboard() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-[10px] font-extrabold text-slate-400 block uppercase mb-1 tracking-wider">Closing Date</label>
-                    <input
-                      type="text"
-                      required
-                      value={tenderClosing}
-                      onChange={(e) => setTenderClosing(e.target.value)}
-                      placeholder="e.g. 10 Days (15 Nov 2026)"
-                      className="w-full bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-3 text-xs font-medium text-slate-700 focus:outline-none focus:border-[#1b4e7e] transition-colors"
-                    />
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">
+                      Closing Deadline Timer
+                    </label>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      <div>
+                        <span className="text-[9px] font-bold text-slate-400 block mb-0.5 text-center">Days</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={tenderDays}
+                          onChange={(e) => setTenderDays(e.target.value)}
+                          placeholder="0"
+                          className="w-full text-center bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-1 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-[#1b4e7e] transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-slate-400 block mb-0.5 text-center">Hours</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="23"
+                          value={tenderHours}
+                          onChange={(e) => setTenderHours(e.target.value)}
+                          placeholder="0"
+                          className="w-full text-center bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-1 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-[#1b4e7e] transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-slate-400 block mb-0.5 text-center">Mins</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="59"
+                          value={tenderMinutes}
+                          onChange={(e) => setTenderMinutes(e.target.value)}
+                          placeholder="2"
+                          className="w-full text-center bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-1 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-[#1b4e7e] transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-slate-400 block mb-0.5 text-center">Secs</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="59"
+                          value={tenderSeconds}
+                          onChange={(e) => setTenderSeconds(e.target.value)}
+                          placeholder="0"
+                          className="w-full text-center bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-1 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-[#1b4e7e] transition-colors"
+                        />
+                      </div>
+                    </div>
                   </div>
                   <div>
                     <label className="text-[10px] font-extrabold text-slate-400 block uppercase mb-1 tracking-wider">Match Priority</label>
                     <select
                       value={tenderMatch}
                       onChange={(e) => setTenderMatch(e.target.value)}
-                      className="w-full bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-2 text-xs font-medium text-slate-700 focus:outline-none focus:border-[#1b4e7e] cursor-pointer"
+                      className="w-full bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-2 text-xs font-medium text-slate-700 focus:outline-none focus:border-[#1b4e7e] cursor-pointer mt-3.5"
                     >
                       <option value="High Match">High Match</option>
                       <option value="Medium Match">Medium Match</option>
@@ -721,7 +991,7 @@ export default function AdminDashboard() {
             {/* Modal Scrollable Body */}
             <div className="p-6 space-y-6 overflow-y-auto flex-grow max-h-[calc(90vh-140px)]">
               {/* Quick Metrics Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div className="bg-slate-50 border border-slate-200/80 p-3.5 rounded-xl">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">State Status</span>
                   <div className="flex items-center gap-1.5 text-xs font-extrabold text-emerald-700">
@@ -741,10 +1011,190 @@ export default function AdminDashboard() {
                     {selectedAuditTender.value}
                   </span>
                 </div>
+                <div className="bg-blue-50/80 border border-blue-200/80 p-3.5 rounded-xl">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 block mb-1">Total Applications</span>
+                  <span className="text-xs font-black text-blue-950">
+                    {tenderAppData?.totalApplications ?? (applicationSummary[selectedAuditTender.id]?.totalApplications || 0)} Received
+                  </span>
+                </div>
+              </div>
+
+              {/* Applications Section */}
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                <div className="bg-[#133c62] text-white px-4 py-3 text-xs font-extrabold uppercase tracking-wider flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                    </svg>
+                    <span>Tender Applications</span>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                    tenderAppData?.isDeadlinePassed ? 'bg-emerald-500 text-white' : 'bg-amber-400 text-slate-900'
+                  }`}>
+                    {tenderAppData?.isDeadlinePassed ? 'SUBMISSION CLOSED' : 'SUBMISSION ACTIVE'}
+                  </span>
+                </div>
+
+                <div className="p-4 bg-slate-50/50 space-y-4 text-xs">
+                  {isLoadingAppData ? (
+                    <div className="py-8 text-center text-slate-500 space-y-2">
+                      <div className="w-6 h-6 border-2 border-[#1b4e7e] border-t-transparent rounded-full animate-spin mx-auto"></div>
+                      <p className="font-semibold">Loading applications...</p>
+                    </div>
+                  ) : !tenderAppData?.isDeadlinePassed ? (
+                    /* BEFORE DEADLINE: Clean Day / Hours / Min / Sec Digital Counter Grid */
+                    <div className="space-y-4">
+                      {/* Active Window Header */}
+                      <div className="bg-white border border-slate-200/90 rounded-xl p-4 shadow-2xs space-y-3.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
+                            <h4 className="text-xs font-extrabold text-slate-800 uppercase tracking-wider">
+                              Submission Window Active
+                            </h4>
+                          </div>
+                        </div>
+
+                        {/* 4-Block Counter Grid (Day / Hours / Min / Sec) */}
+                        <div className="grid grid-cols-4 gap-2.5 sm:gap-4 text-center pt-1">
+                          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 shadow-2xs">
+                            <span className="text-xl sm:text-2xl font-black font-mono text-slate-900 block leading-tight">
+                              {getTenderCountdown(selectedAuditTender).days}
+                            </span>
+                            <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mt-1">
+                              Days
+                            </span>
+                          </div>
+                          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 shadow-2xs">
+                            <span className="text-xl sm:text-2xl font-black font-mono text-slate-900 block leading-tight">
+                              {getTenderCountdown(selectedAuditTender).hours}
+                            </span>
+                            <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mt-1">
+                              Hours
+                            </span>
+                          </div>
+                          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 shadow-2xs">
+                            <span className="text-xl sm:text-2xl font-black font-mono text-slate-900 block leading-tight">
+                              {getTenderCountdown(selectedAuditTender).mins}
+                            </span>
+                            <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mt-1">
+                              Minutes
+                            </span>
+                          </div>
+                          <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3 shadow-2xs">
+                            <span className="text-xl sm:text-2xl font-black font-mono text-blue-900 block leading-tight">
+                              {getTenderCountdown(selectedAuditTender).secs}
+                            </span>
+                            <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mt-1">
+                              Seconds
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Administration Action */}
+                      <div className="bg-slate-100/60 border border-slate-200/80 rounded-xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div>
+                          <span className="text-xs font-bold text-slate-700 block">
+                            Administrative Action
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            Close the active submission window early to begin applicant evaluation.
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={isUnsealing}
+                          onClick={() => handleTriggerUnseal(selectedAuditTender.id, true)}
+                          className="px-4 py-2 bg-[#1b4e7e] hover:bg-[#133c62] text-white rounded-lg font-bold text-xs transition-colors cursor-pointer shadow-2xs shrink-0"
+                        >
+                          {isUnsealing ? 'Processing...' : 'Close Submission Window Now'}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    /* AFTER DEADLINE: Unsealed Decrypted Applications */
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 p-3 rounded-xl">
+                        <div>
+                          <h4 className="font-extrabold text-emerald-900 text-xs">
+                            Submission Closed: {tenderAppData.applications?.length || 0} Applications Received
+                          </h4>
+                          <p className="text-[10px] text-emerald-700">
+                            All applicant profiles and financial proposals are available for review below.
+                          </p>
+                        </div>
+                        <span className="px-2.5 py-1 bg-emerald-600 text-white rounded font-bold text-[10px]">
+                          READY FOR EVALUATION
+                        </span>
+                      </div>
+
+                      {tenderAppData.applications && tenderAppData.applications.length > 0 ? (
+                        <div className="space-y-3">
+                          {tenderAppData.applications.map((app: any, idx: number) => (
+                            <div key={idx} className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <span className="text-[10px] font-mono font-bold text-slate-400 block">
+                                    APP ID: {app.applicationId}
+                                  </span>
+                                  <h4 className="text-sm font-extrabold text-slate-800">
+                                    {app.payload?.applicant?.orgName || app.payload?.applicant?.fullName}
+                                  </h4>
+                                  <span className="text-xs text-slate-500">
+                                    Contact: {app.payload?.applicant?.fullName} ({app.payload?.applicant?.email})
+                                  </span>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-[10px] font-bold text-slate-400 block uppercase">Financial Bid</span>
+                                  <span className="text-sm font-black text-emerald-700">
+                                    {app.payload?.bidDetails?.bidAmount}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100 text-[10px]">
+                                <div>
+                                  <span className="text-slate-400 block">PAN Number:</span>
+                                  <span className="font-mono font-bold text-slate-700">{app.payload?.applicant?.pan || 'N/A'}</span>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400 block">GSTIN:</span>
+                                  <span className="font-mono font-bold text-slate-700">{app.payload?.applicant?.gst || 'N/A'}</span>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400 block">Operating Hub:</span>
+                                  <span className="font-bold text-slate-700">{app.payload?.applicant?.city || 'N/A'}, {app.payload?.applicant?.state || ''}</span>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400 block">Verification:</span>
+                                  <span className="font-bold text-emerald-700 block">
+                                    Verified
+                                  </span>
+                                </div>
+                              </div>
+
+                              {app.payload?.applicant?.walletAddress && (
+                                <div className="p-2 bg-slate-50 rounded border border-slate-100 text-[10px] flex items-center justify-between">
+                                  <span className="text-slate-500 font-medium">Digital Wallet:</span>
+                                  <span className="font-mono text-slate-700 font-semibold">{app.payload.applicant.walletAddress}</span>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="py-6 text-center text-slate-400 italic">
+                          No applications were submitted for this tender before closing.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Core Parameters Table */}
-              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+              <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
                 <div className="bg-slate-100/90 px-4 py-2.5 border-b border-slate-200 text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center justify-between">
                   <span>Procurement Specification Parameters</span>
                 </div>
@@ -768,39 +1218,6 @@ export default function AdminDashboard() {
                   <div className="grid grid-cols-3 p-3.5 hover:bg-slate-50/70 transition-colors">
                     <span className="font-bold text-slate-500">Auditing Administrator</span>
                     <span className="col-span-2 font-semibold text-slate-800">{admin?.fullName || 'System Administrator'} ({admin?.email || 'admin@axiom'})</span>
-                  </div>
-                  <div className="grid grid-cols-3 p-3.5 hover:bg-slate-50/70 transition-colors">
-                    <span className="font-bold text-slate-500">Compliance Verification</span>
-                    <span className="col-span-2 font-bold text-emerald-700 flex items-center gap-1.5">
-                      <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Verified & Active for Public Bidding
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Verification Timeline */}
-              <div className="space-y-3">
-                <h4 className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">
-                  Audit Trail Milestones
-                </h4>
-                <div className="space-y-3 border-l-2 border-[#1b4e7e]/20 pl-4 ml-1">
-                  <div className="relative">
-                    <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-100"></span>
-                    <p className="text-xs font-bold text-slate-800">Notice Published to MySQL Database</p>
-                    <p className="text-[11px] text-slate-500">Persisted with unique identifier key into table <code className="text-[#1b4e7e] font-mono">axiom.tenders</code>.</p>
-                  </div>
-                  <div className="relative">
-                    <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-100"></span>
-                    <p className="text-xs font-bold text-slate-800">Compliance & Digital Validation Complete</p>
-                    <p className="text-[11px] text-slate-500">Validated against institutional procurement compliance guidelines.</p>
-                  </div>
-                  <div className="relative">
-                    <span className="absolute -left-[21px] top-1 w-2.5 h-2.5 rounded-full bg-[#1b4e7e] ring-4 ring-[#1b4e7e]/20"></span>
-                    <p className="text-xs font-bold text-slate-800">Active Live State Broadcasting</p>
-                    <p className="text-[11px] text-slate-500">Synchronized in real-time with contractor dashboard and bidder directories.</p>
                   </div>
                 </div>
               </div>

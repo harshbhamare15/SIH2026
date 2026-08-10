@@ -135,7 +135,7 @@ export default function RegisterComponent() {
     const ethereum = (window as any).ethereum;
 
     if (!ethereum) {
-      alert('MetaMask browser extension not detected. Please install MetaMask to register as a Buyer for Ganache GUI transactions.');
+      alert('MetaMask browser extension not detected. Please install MetaMask to register as a Buyer.');
       window.open('https://metamask.io/download/', '_blank');
       return;
     }

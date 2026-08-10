@@ -94,9 +94,46 @@ export async function ensureTablesExist(): Promise<void> {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `;
 
+  const createApplicationsTableQuery = `
+    CREATE TABLE IF NOT EXISTS tender_applications (
+      id VARCHAR(100) PRIMARY KEY,
+      tenderId VARCHAR(100) NOT NULL,
+      userId INT NULL,
+      applicantName VARCHAR(255) NOT NULL,
+      applicantEmail VARCHAR(255) NOT NULL,
+      encryptedPayload LONGTEXT NOT NULL,
+      iv VARCHAR(64) NOT NULL,
+      authTag VARCHAR(64) NOT NULL,
+      dbKeyShare VARCHAR(128) NOT NULL,
+      bidHash VARCHAR(128) NOT NULL,
+      status ENUM('SEALED', 'UNSEALED') NOT NULL DEFAULT 'SEALED',
+      submittedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      unsealedAt TIMESTAMP NULL,
+      INDEX idx_app_tender (tenderId),
+      INDEX idx_app_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `;
+
+  const createNetworkVaultTableQuery = `
+    CREATE TABLE IF NOT EXISTS axiom_network_vault (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      applicationId VARCHAR(100) NOT NULL UNIQUE,
+      tenderId VARCHAR(100) NOT NULL,
+      networkKeyShare VARCHAR(128) NOT NULL,
+      timelockExpiry VARCHAR(100) NOT NULL,
+      vaultStatus ENUM('LOCKED_IN_NETWORK', 'RELEASED_FOR_DECRYPTION') NOT NULL DEFAULT 'LOCKED_IN_NETWORK',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      released_at TIMESTAMP NULL,
+      INDEX idx_nv_app (applicationId),
+      INDEX idx_nv_tender (tenderId)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `;
+
   await db.query(createUsersTableQuery);
   await db.query(createAdminTableQuery);
   await db.query(createTendersTableQuery);
+  await db.query(createApplicationsTableQuery);
+  await db.query(createNetworkVaultTableQuery);
 
   // Safe migration for existing users table
   try {

@@ -323,217 +323,51 @@ export default function DashboardPage() {
   const [selectedTender, setSelectedTender] = useState<TenderItem | null>(null);
   const [bidValue, setBidValue] = useState("");
 
-  const liveTenderData = [
-    {
-      id: "LT/2026/00124",
-      title: "National Highway Expansion - Package 7",
-      department: "National Highways Authority",
-      category: "Infrastructure",
-      location: "Maharashtra",
-      value: "₹550 Crores",
-      deadline: "22 Oct 2026",
-      status: "Live",
-      match: "High Match",
-    },
-    {
-      id: "LT/2026/00125",
-      title: "Supply of High-Resolution Medical Monitors",
-      department: "AIIMS New Delhi",
-      category: "Medical Equipment",
-      location: "Delhi",
-      value: "₹12.30 Crores",
-      deadline: "03 Sep 2026",
-      status: "Live",
-      match: "High Match",
-    },
-    {
-      id: "LT/2026/00126",
-      title: "IT Infrastructure Servers & Network Upgrade",
-      department: "National Informatics Centre",
-      category: "Information Technology",
-      location: "Karnataka",
-      value: "₹5.80 Crores",
-      deadline: "18 Aug 2026",
-      status: "Live",
-      match: "Medium Match",
-    },
-    {
-      id: "LT/2026/00127",
-      title: "Rooftop Solar Power Plant Commission",
-      department: "IIT Delhi Engineering Wing",
-      category: "Renewable Energy",
-      location: "Delhi",
-      value: "₹2.10 Crores",
-      deadline: "30 Aug 2026",
-      status: "Live",
-      match: "High Match",
-    },
-  ];
-
-  const findTenderData = [
-    {
-      id: "FT/2026/00401",
-      title: "Construction of Government Residential Complex",
-      department: "Public Works Department",
-      category: "Construction",
-      location: "Pune, Maharashtra",
-      value: "₹85 Crores",
-      deadline: "15 Sep 2026",
-    },
-    {
-      id: "FT/2026/00402",
-      title: "Cloud Infrastructure & Data Center Services",
-      department: "Ministry of Electronics",
-      category: "IT Services",
-      location: "Bengaluru, Karnataka",
-      value: "₹24 Crores",
-      deadline: "28 Sep 2026",
-    },
-    {
-      id: "FT/2026/00403",
-      title: "Supply of Hospital Furniture",
-      department: "Health Department",
-      category: "Healthcare",
-      location: "Mumbai, Maharashtra",
-      value: "₹7.5 Crores",
-      deadline: "10 Sep 2026",
-    },
-    {
-      id: "FT/2026/00404",
-      title: "Solar Street Lighting Project",
-      department: "Energy Department",
-      category: "Renewable Energy",
-      location: "Ahmedabad, Gujarat",
-      value: "₹18 Crores",
-      deadline: "05 Oct 2026",
-    },
-  ];
-
-  const categoryData = [
-    {
-      name: "Infrastructure",
-      count: 24,
-      description: "Roads, highways, bridges and infrastructure projects",
-    },
-    {
-      name: "Information Technology",
-      count: 18,
-      description: "Software, hardware, networking and IT services",
-    },
-    {
-      name: "Healthcare",
-      count: 15,
-      description: "Medical equipment, hospitals and healthcare supplies",
-    },
-    {
-      name: "Construction",
-      count: 21,
-      description: "Buildings, civil works and construction projects",
-    },
-    {
-      name: "Renewable Energy",
-      count: 12,
-      description: "Solar, wind and clean energy projects",
-    },
-    {
-      name: "Transportation",
-      count: 9,
-      description: "Transport, logistics and vehicle related tenders",
-    },
-  ];
-
-  const appliedTenderData = [
-    {
-      id: "AT/2026/00101",
-      title: "Medical Equipment Supply - Phase II",
-      department: "AIIMS New Delhi",
-      category: "Medical Equipment",
-      submittedOn: "02 Aug 2026",
-      bidAmount: "₹11.85 Crores",
-      status: "Under Evaluation",
-    },
-    {
-      id: "AT/2026/00102",
-      title: "IT Infrastructure Upgrade",
-      department: "National Informatics Centre",
-      category: "Information Technology",
-      submittedOn: "30 Jul 2026",
-      bidAmount: "₹5.45 Crores",
-      status: "Technical Evaluation",
-    },
-    {
-      id: "AT/2026/00103",
-      title: "Solar Power Plant Installation",
-      department: "Energy Department",
-      category: "Renewable Energy",
-      submittedOn: "25 Jul 2026",
-      bidAmount: "₹1.95 Crores",
-      status: "Under Evaluation",
-    },
-  ];
-
-  const pastHistoryData = [
-    {
-      id: "PH/2026/00041",
-      title: "Government Office Furniture Supply",
-      department: "General Administration",
-      category: "Furniture",
-      appliedOn: "12 Jun 2026",
-      bidAmount: "₹2.40 Crores",
-      result: "Not Selected",
-    },
-    {
-      id: "PH/2026/00042",
-      title: "Road Maintenance Package - 4",
-      department: "PWD Maharashtra",
-      category: "Infrastructure",
-      appliedOn: "05 Jun 2026",
-      bidAmount: "₹8.20 Crores",
-      result: "Awarded",
-    },
-    {
-      id: "PH/2026/00043",
-      title: "Computer Hardware Procurement",
-      department: "Government IT Department",
-      category: "Information Technology",
-      appliedOn: "20 May 2026",
-      bidAmount: "₹1.15 Crores",
-      result: "Not Selected",
-    },
-  ];
-
-  const upcomingTenderData = [
-    {
-      id: "UP/2026/00301",
-      title: "Mumbai Metro Electrical Infrastructure",
-      department: "Metro Rail Corporation",
-      category: "Infrastructure",
-      location: "Mumbai",
-      openingDate: "18 Aug 2026",
-      value: "₹120 Crores",
-    },
-    {
-      id: "UP/2026/00302",
-      title: "AI-Based Hospital Management System",
-      department: "Health Department",
-      category: "Information Technology",
-      location: "Gujarat",
-      openingDate: "22 Aug 2026",
-      value: "₹16 Crores",
-    },
-    {
-      id: "UP/2026/00303",
-      title: "Solar Rooftop Installation - Phase III",
-      department: "Renewable Energy Corporation",
-      category: "Renewable Energy",
-      location: "Rajasthan",
-      openingDate: "27 Aug 2026",
-      value: "₹42 Crores",
-    },
-  ];
-
   // Dynamic states for Tenders loaded from MySQL database
   const [tenders, setTenders] = useState<TenderItem[]>([]);
+
+  // User Submitted Applications state (loaded dynamically from MySQL DB)
+  const [userApplications, setUserApplications] = useState<any[]>([]);
+  const [isLoadingUserApps, setIsLoadingUserApps] = useState(false);
+
+  const fetchUserApplications = async (email?: string, id?: number | string) => {
+    if (!email && !id) return;
+    setIsLoadingUserApps(true);
+    try {
+      const res = await fetch(`/api/applications?userEmail=${encodeURIComponent(email || '')}&userId=${id || ''}`);
+      const data = await res.json();
+      if (res.ok && Array.isArray(data.applications)) {
+        setUserApplications(data.applications);
+      }
+    } catch (e) {
+      console.error('Error fetching user applications:', e);
+    } finally {
+      setIsLoadingUserApps(false);
+    }
+  };
+
+  // Dynamic category distribution computed from active tenders
+  const categoryData = useMemo(() => {
+    const defaultCategories = [
+      { name: "Infrastructure", description: "Roads, highways, bridges and infrastructure projects" },
+      { name: "Information Technology", description: "Software, hardware, networking and IT services" },
+      { name: "Healthcare", description: "Medical equipment, hospitals and healthcare supplies" },
+      { name: "Construction", description: "Buildings, civil works and construction projects" },
+      { name: "Renewable Energy", description: "Solar, wind and clean energy projects" },
+      { name: "Transportation", description: "Transport, logistics and vehicle related tenders" },
+    ];
+
+    return defaultCategories.map(category => {
+      const matchingCount = tenders.filter(t => 
+        t.title.toLowerCase().includes(category.name.toLowerCase()) || 
+        t.dept.toLowerCase().includes(category.name.toLowerCase())
+      ).length;
+      return {
+        ...category,
+        count: matchingCount > 0 ? matchingCount : tenders.length > 0 ? 1 : 0
+      };
+    });
+  }, [tenders]);
 
   // Mock state for Arena Auctions (supporting functional search filtering)
   const [auctions, setAuctions] = useState<ArenaAuctionItem[]>([
@@ -741,6 +575,9 @@ export default function DashboardPage() {
       } else {
         const parsed = JSON.parse(loggedIn);
         setUser(parsed);
+        if (parsed.email || parsed.id) {
+          fetchUserApplications(parsed.email, parsed.id);
+        }
         const params = new URLSearchParams(window.location.search);
         const tabParam = params.get("tab");
         if (tabParam === "tender" || tabParam === "auction") {
@@ -812,28 +649,82 @@ export default function DashboardPage() {
     router.push("/");
   };
 
-  const handleTenderBidSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedTender || !bidValue) return;
+  // Sealed bid receipt state
+  const [sealedReceipt, setSealedReceipt] = useState<{
+    applicationId: string;
+    bidHash: string;
+    sealedStatus: string;
+  } | null>(null);
 
-    const updated = tenders.map((t) =>
-      t.id === selectedTender.id
-        ? {
-            ...t,
-            status: "submitted" as const,
-            myBid: `₹ ${parseFloat(bidValue).toLocaleString()} Crores`,
-          }
-        : t,
-    );
-    setTenders(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("user-tenders", JSON.stringify(updated));
+  const handleTenderBidSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTender || !bidValue || !user) return;
+
+    try {
+      const payload = {
+        tenderId: selectedTender.id,
+        applicant: {
+          userId: user.id,
+          fullName: user.fullName,
+          email: user.email,
+          mobile: user.mobile,
+          orgName: user.orgName,
+          orgType: user.orgType,
+          pan: user.pan,
+          gst: user.gst,
+          address: user.address,
+          city: user.city,
+          state: user.state,
+          walletAddress: user.walletAddress,
+          deviceFingerprint: user.deviceFingerprint,
+        },
+        bidDetails: {
+          bidAmount: `₹ ${parseFloat(bidValue).toLocaleString()} Crores`,
+          bidAmountNumeric: parseFloat(bidValue),
+          technicalProposal: `Enterprise Bid Package for ${selectedTender.title}`,
+          documentsAttached: ['GST_COMPLIANCE_CERT', 'PAN_VERIFICATION', 'BID_SECURITY_DECLARATION'],
+        }
+      };
+
+      const res = await fetch('/api/applications/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(data.error || 'Failed to submit application.');
+        return;
+      }
+
+      const updated = tenders.map((t) =>
+        t.id === selectedTender.id
+          ? {
+              ...t,
+              status: "submitted" as const,
+              myBid: `₹ ${parseFloat(bidValue).toLocaleString()} Crores`,
+            }
+          : t,
+      );
+      setTenders(updated);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("user-tenders", JSON.stringify(updated));
+      }
+
+      if (user) {
+        fetchUserApplications(user.email, user.id);
+      }
+
+      alert(
+        `Application Submitted Successfully!\n\nApplication Reference ID: ${data.applicationId}\n\nYour application has been received and will be evaluated after the tender deadline closes.`,
+      );
+      setSelectedTender(null);
+      setBidValue("");
+    } catch (err) {
+      console.error('Bid submission error:', err);
+      alert('Network error while sealing application.');
     }
-    alert(
-      `Bid of ${bidValue} Crores submitted successfully for Tender ${selectedTender.id}!`,
-    );
-    setSelectedTender(null);
-    setBidValue("");
   };
 
   // Quick Apply Modal States
@@ -847,14 +738,53 @@ export default function DashboardPage() {
     setQuickApplyTender(item);
     setQuickApplyStep(1);
     setQuickApplyBidValue("");
+    setSealedReceipt(null);
   };
 
-  const executeQuickApply = (e: React.FormEvent) => {
+  const executeQuickApply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!quickApplyTender || !quickApplyBidValue) return;
+    if (!quickApplyTender || !quickApplyBidValue || !user) return;
     setQuickApplyStep(2); // Set loading view
 
-    setTimeout(() => {
+    try {
+      const payload = {
+        tenderId: quickApplyTender.id,
+        applicant: {
+          userId: user.id,
+          fullName: user.fullName,
+          email: user.email,
+          mobile: user.mobile,
+          orgName: user.orgName,
+          orgType: user.orgType,
+          pan: user.pan,
+          gst: user.gst,
+          address: user.address,
+          city: user.city,
+          state: user.state,
+          walletAddress: user.walletAddress,
+          deviceFingerprint: user.deviceFingerprint,
+        },
+        bidDetails: {
+          bidAmount: `₹ ${parseFloat(quickApplyBidValue).toLocaleString()} Crores (Vault)`,
+          bidAmountNumeric: parseFloat(quickApplyBidValue),
+          technicalProposal: `Quick-Vault Verification Proposal for ${quickApplyTender.title}`,
+          documentsAttached: ['GST_CERTIFICATE', 'PAN_CARD', 'DOCUMENT_VAULT_ATTESTATION'],
+        }
+      };
+
+      const res = await fetch('/api/applications/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(data.error || 'Failed to submit sealed application.');
+        setQuickApplyStep(1);
+        return;
+      }
+
       const updated = tenders.map((t) =>
         t.id === quickApplyTender.id
           ? {
@@ -868,8 +798,22 @@ export default function DashboardPage() {
       if (typeof window !== "undefined") {
         localStorage.setItem("user-tenders", JSON.stringify(updated));
       }
-      setQuickApplyStep(3); // Set success view
-    }, 1800);
+
+      if (user) {
+        fetchUserApplications(user.email, user.id);
+      }
+
+      setSealedReceipt({
+        applicationId: data.applicationId,
+        bidHash: data.bidHash,
+        sealedStatus: data.sealedStatus || 'SEALED_IN_AXIOM_VAULT',
+      });
+      setQuickApplyStep(3); // Success receipt view
+    } catch (err) {
+      console.error('Quick apply error:', err);
+      alert('Network error during quick application submission.');
+      setQuickApplyStep(1);
+    }
   };
 
   const handleReverseArenaBid = (e: React.FormEvent) => {
@@ -2276,95 +2220,88 @@ export default function DashboardPage() {
                 </div>
 
                 <p className="text-sm text-slate-500 mt-1">
-                  Currently active tenders available for bidding
+                  Currently active tenders available for bidding from MySQL database
                 </p>
               </div>
 
               <span className="px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-100">
-                {liveTenderData.length} Live Tenders
+                {tenders.length} Live Tenders
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {liveTenderData.map((tender) => (
-                <div
-                  key={tender.id}
-                  className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-all"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <span className="text-[10px] font-bold text-[#1b4e7e]">
-                        {tender.id}
-                      </span>
-
-                      <h3 className="text-sm font-bold text-slate-800 mt-1">
-                        {tender.title}
-                      </h3>
-
-                      <p className="text-xs text-slate-500 mt-1">
-                        {tender.department}
-                      </p>
-                    </div>
-
-                    <span className="px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold">
-                      LIVE
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 mt-5">
-                    <div className="bg-slate-50 rounded-lg p-3">
-                      <p className="text-[10px] text-slate-400">Category</p>
-
-                      <p className="text-xs font-bold text-slate-700 mt-1">
-                        {tender.category}
-                      </p>
-                    </div>
-
-                    <div className="bg-slate-50 rounded-lg p-3">
-                      <p className="text-[10px] text-slate-400">Location</p>
-
-                      <p className="text-xs font-bold text-slate-700 mt-1">
-                        {tender.location}
-                      </p>
-                    </div>
-
-                    <div className="bg-slate-50 rounded-lg p-3">
-                      <p className="text-[10px] text-slate-400">Tender Value</p>
-
-                      <p className="text-xs font-bold text-slate-700 mt-1">
-                        {tender.value}
-                      </p>
-                    </div>
-
-                    <div className="bg-slate-50 rounded-lg p-3">
-                      <p className="text-[10px] text-slate-400">Deadline</p>
-
-                      <p className="text-xs font-bold text-red-600 mt-1">
-                        {tender.deadline}
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() =>
-                      setSelectedTender({
-                        id: tender.id,
-                        title: tender.title,
-                        dept: tender.department,
-                        location: tender.location,
-                        value: tender.value,
-                        deadline: tender.deadline,
-                        match: tender.match as "High Match" | "Medium Match",
-                        status: "active",
-                      })
-                    }
-                    className="w-full mt-5 bg-[#1b4e7e] hover:bg-[#163f65] text-white py-2.5 rounded-lg text-xs font-bold transition-colors"
+            {tenders.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {tenders.map((tender) => (
+                  <div
+                    key={tender.id}
+                    className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between"
                   >
-                    View & Apply
-                  </button>
-                </div>
-              ))}
-            </div>
+                    <div>
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <span className="text-[10px] font-bold text-[#1b4e7e]">
+                            {tender.id}
+                          </span>
+
+                          <h3 className="text-sm font-bold text-slate-800 mt-1">
+                            {tender.title}
+                          </h3>
+
+                          <p className="text-xs text-slate-500 mt-1">
+                            {tender.dept}
+                          </p>
+                        </div>
+
+                        <span className="px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-bold shrink-0">
+                          LIVE
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 mt-5">
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-[10px] text-slate-400">Match</p>
+                          <p className="text-xs font-bold text-slate-700 mt-1">
+                            {tender.match}
+                          </p>
+                        </div>
+
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-[10px] text-slate-400">Location</p>
+                          <p className="text-xs font-bold text-slate-700 mt-1">
+                            {tender.location}
+                          </p>
+                        </div>
+
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-[10px] text-slate-400">Tender Value</p>
+                          <p className="text-xs font-bold text-slate-700 mt-1">
+                            {tender.value}
+                          </p>
+                        </div>
+
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-[10px] text-slate-400">Deadline</p>
+                          <p className="text-xs font-bold text-red-600 mt-1">
+                            {tender.deadline}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setSelectedTender(tender)}
+                      className="w-full mt-5 bg-[#1b4e7e] hover:bg-[#163f65] text-white py-2.5 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      View & Apply
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500">
+                <p className="text-sm font-semibold">No tenders currently active in the database.</p>
+              </div>
+            )}
           </section>
         )}
 
@@ -2378,8 +2315,7 @@ export default function DashboardPage() {
               <h2 className="text-xl font-bold text-slate-800">Find Tenders</h2>
 
               <p className="text-sm text-slate-500 mt-1">
-                Explore tenders available across different departments and
-                locations.
+                Explore tenders available across different departments and locations.
               </p>
             </div>
 
@@ -2409,98 +2345,79 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {findTenderData
-                .filter(
-                  (tender) =>
-                    tender.title
-                      .toLowerCase()
-                      .includes(searchQuery.toLowerCase()) ||
-                    tender.id
-                      .toLowerCase()
-                      .includes(searchQuery.toLowerCase()) ||
-                    tender.department
-                      .toLowerCase()
-                      .includes(searchQuery.toLowerCase()) ||
-                    tender.location
-                      .toLowerCase()
-                      .includes(searchQuery.toLowerCase()),
-                )
-                .map((tender) => (
+            {filteredTenders.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {filteredTenders.map((tender) => (
                   <div
                     key={tender.id}
-                    className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow"
+                    className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
                   >
-                    <div className="flex justify-between items-start gap-3">
-                      <div>
-                        <span className="text-[10px] font-bold text-[#1b4e7e]">
-                          {tender.id}
+                    <div>
+                      <div className="flex justify-between items-start gap-3">
+                        <div>
+                          <span className="text-[10px] font-bold text-[#1b4e7e]">
+                            {tender.id}
+                          </span>
+
+                          <h3 className="font-bold text-slate-800 text-sm mt-1">
+                            {tender.title}
+                          </h3>
+
+                          <p className="text-xs text-slate-500 mt-1">
+                            {tender.dept}
+                          </p>
+                        </div>
+
+                        <span className="px-2 py-1 rounded-md bg-blue-50 text-[#1b4e7e] text-[10px] font-bold shrink-0">
+                          OPEN
                         </span>
-
-                        <h3 className="font-bold text-slate-800 text-sm mt-1">
-                          {tender.title}
-                        </h3>
-
-                        <p className="text-xs text-slate-500 mt-1">
-                          {tender.department}
-                        </p>
                       </div>
 
-                      <span className="px-2 py-1 rounded-md bg-blue-50 text-[#1b4e7e] text-[10px] font-bold">
-                        OPEN
-                      </span>
-                    </div>
+                      <div className="grid grid-cols-2 gap-3 mt-5">
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-[10px] text-slate-400">Match</p>
+                          <p className="text-xs font-bold text-slate-700 mt-1">
+                            {tender.match}
+                          </p>
+                        </div>
 
-                    <div className="grid grid-cols-2 gap-3 mt-5">
-                      <div className="bg-slate-50 rounded-lg p-3">
-                        <p className="text-[10px] text-slate-400">Category</p>
-                        <p className="text-xs font-bold text-slate-700 mt-1">
-                          {tender.category}
-                        </p>
-                      </div>
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-[10px] text-slate-400">Location</p>
+                          <p className="text-xs font-bold text-slate-700 mt-1">
+                            {tender.location}
+                          </p>
+                        </div>
 
-                      <div className="bg-slate-50 rounded-lg p-3">
-                        <p className="text-[10px] text-slate-400">Location</p>
-                        <p className="text-xs font-bold text-slate-700 mt-1">
-                          {tender.location}
-                        </p>
-                      </div>
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-[10px] text-slate-400">Value</p>
+                          <p className="text-xs font-bold text-slate-700 mt-1">
+                            {tender.value}
+                          </p>
+                        </div>
 
-                      <div className="bg-slate-50 rounded-lg p-3">
-                        <p className="text-[10px] text-slate-400">Value</p>
-                        <p className="text-xs font-bold text-slate-700 mt-1">
-                          {tender.value}
-                        </p>
-                      </div>
-
-                      <div className="bg-slate-50 rounded-lg p-3">
-                        <p className="text-[10px] text-slate-400">Deadline</p>
-                        <p className="text-xs font-bold text-red-600 mt-1">
-                          {tender.deadline}
-                        </p>
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-[10px] text-slate-400">Deadline</p>
+                          <p className="text-xs font-bold text-red-600 mt-1">
+                            {tender.deadline}
+                          </p>
+                        </div>
                       </div>
                     </div>
 
                     <button
-                      onClick={() =>
-                        setSelectedTender({
-                          id: tender.id,
-                          title: tender.title,
-                          dept: tender.department,
-                          location: tender.location,
-                          value: tender.value,
-                          deadline: tender.deadline,
-                          match: "High Match",
-                          status: "active",
-                        })
-                      }
-                      className="w-full mt-5 bg-[#1b4e7e] hover:bg-[#163f65] text-white py-2.5 rounded-lg text-xs font-bold"
+                      onClick={() => setSelectedTender(tender)}
+                      className="w-full mt-5 bg-[#1b4e7e] hover:bg-[#163f65] text-white py-2.5 rounded-lg text-xs font-bold cursor-pointer"
                     >
                       View Details & Apply
                     </button>
                   </div>
                 ))}
-            </div>
+              </div>
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500">
+                <p className="text-sm font-semibold">No matching tenders found for "{searchQuery}".</p>
+              </div>
+            )}
           </section>
         )}
 
@@ -2549,7 +2466,7 @@ export default function DashboardPage() {
                       setSearchQuery(category.name);
                       setActiveSubNav("find");
                     }}
-                    className="w-full mt-5 border border-[#1b4e7e]/20 text-[#1b4e7e] hover:bg-[#1b4e7e] hover:text-white py-2.5 rounded-lg text-xs font-bold transition-colors"
+                    className="w-full mt-5 border border-[#1b4e7e]/20 text-[#1b4e7e] hover:bg-[#1b4e7e] hover:text-white py-2.5 rounded-lg text-xs font-bold transition-colors cursor-pointer"
                   >
                     Browse Tenders →
                   </button>
@@ -2572,66 +2489,92 @@ export default function DashboardPage() {
                 </h2>
 
                 <p className="text-sm text-slate-500 mt-1">
-                  Track all tenders where you have submitted a bid.
+                  Track all tenders where you have submitted an encrypted application.
                 </p>
               </div>
 
               <span className="px-3 py-1.5 rounded-lg bg-blue-50 text-[#1b4e7e] text-xs font-bold">
-                {appliedTenderData.length} Applications
+                {userApplications.length} Applications
               </span>
             </div>
 
-            <div className="space-y-4">
-              {appliedTenderData.map((tender) => (
-                <div
-                  key={tender.id}
-                  className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm"
-                >
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-                    <div className="flex-1">
-                      <span className="text-[10px] font-bold text-[#1b4e7e]">
-                        {tender.id}
+            {isLoadingUserApps ? (
+              <div className="py-8 text-center text-slate-500">
+                <div className="w-6 h-6 border-2 border-[#1b4e7e] border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                <p className="text-xs font-semibold">Loading your submitted applications...</p>
+              </div>
+            ) : userApplications.length > 0 ? (
+              <div className="space-y-4">
+                {userApplications.map((app) => (
+                  <div
+                    key={app.applicationId}
+                    className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3"
+                  >
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono font-bold text-[#1b4e7e]">
+                            {app.applicationId}
+                          </span>
+                          <span className="text-[10px] font-bold text-slate-400">• Tender: {app.tenderId}</span>
+                        </div>
+
+                        <h3 className="text-sm font-bold text-slate-800 mt-1">
+                          {app.tenderTitle || 'Public Procurement Package'}
+                        </h3>
+
+                        <p className="text-xs text-slate-500 mt-1">
+                          Client: {app.department || 'Government Procurement Directorate'}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 text-xs">
+                        <div>
+                          <p className="text-slate-400 text-[10px]">Location</p>
+                          <p className="font-bold text-slate-700 mt-1">
+                            {app.location || 'Gujarat'}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-slate-400 text-[10px]">Submitted</p>
+                          <p className="font-bold text-slate-700 mt-1">
+                            {app.submittedAt ? new Date(app.submittedAt).toLocaleDateString('en-GB') : 'Today'}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-slate-400 text-[10px]">Est. Value</p>
+                          <p className="font-bold text-slate-700 mt-1">
+                            {app.value || 'N/A'}
+                          </p>
+                        </div>
+                      </div>
+
+                      <span className={`px-3 py-1.5 rounded-lg border text-[10px] font-bold whitespace-nowrap ${
+                        app.status === 'SEALED'
+                          ? 'bg-amber-50 text-amber-800 border-amber-200'
+                          : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                      }`}>
+                        {app.status === 'SEALED' ? 'SEALED' : 'UNSEALED'}
                       </span>
-
-                      <h3 className="text-sm font-bold text-slate-800 mt-1">
-                        {tender.title}
-                      </h3>
-
-                      <p className="text-xs text-slate-500 mt-1">
-                        {tender.department}
-                      </p>
                     </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 text-xs">
-                      <div>
-                        <p className="text-slate-400 text-[10px]">Category</p>
-                        <p className="font-bold text-slate-700 mt-1">
-                          {tender.category}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-slate-400 text-[10px]">Submitted</p>
-                        <p className="font-bold text-slate-700 mt-1">
-                          {tender.submittedOn}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-slate-400 text-[10px]">Bid Amount</p>
-                        <p className="font-bold text-slate-700 mt-1">
-                          {tender.bidAmount}
-                        </p>
-                      </div>
-                    </div>
-
-                    <span className="px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-100 text-[10px] font-bold whitespace-nowrap">
-                      {tender.status}
-                    </span>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500 space-y-2">
+                <p className="text-sm font-semibold">No applications submitted yet.</p>
+                <p className="text-xs text-slate-400">Browse active tenders in the repository to submit your first application.</p>
+                <button
+                  type="button"
+                  onClick={() => setActiveSubNav("dashboard")}
+                  className="mt-3 px-4 py-2 bg-[#1b4e7e] hover:bg-[#133c62] text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Explore Active Tenders
+                </button>
+              </div>
+            )}
           </section>
         )}
 
@@ -2645,67 +2588,70 @@ export default function DashboardPage() {
               <h2 className="text-xl font-bold text-slate-800">Past History</h2>
 
               <p className="text-sm text-slate-500 mt-1">
-                Review your previous tender applications and results.
+                Review your previous tender applications and evaluated results.
               </p>
             </div>
 
-            <div className="space-y-4">
-              {pastHistoryData.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm"
-                >
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-                    <div className="flex-1">
-                      <span className="text-[10px] font-bold text-[#1b4e7e]">
-                        {item.id}
-                      </span>
-
-                      <h3 className="text-sm font-bold text-slate-800 mt-1">
-                        {item.title}
-                      </h3>
-
-                      <p className="text-xs text-slate-500 mt-1">
-                        {item.department}
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 text-xs">
-                      <div>
-                        <p className="text-slate-400 text-[10px]">Category</p>
-                        <p className="font-bold text-slate-700 mt-1">
-                          {item.category}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-slate-400 text-[10px]">Applied On</p>
-                        <p className="font-bold text-slate-700 mt-1">
-                          {item.appliedOn}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-slate-400 text-[10px]">Bid Amount</p>
-                        <p className="font-bold text-slate-700 mt-1">
-                          {item.bidAmount}
-                        </p>
-                      </div>
-                    </div>
-
-                    <span
-                      className={`px-3 py-1.5 rounded-lg text-[10px] font-bold whitespace-nowrap ${
-                        item.result === "Awarded"
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
-                          : "bg-rose-50 text-rose-700 border border-rose-100"
-                      }`}
+            {userApplications.filter((a) => a.status === "UNSEALED").length > 0 ? (
+              <div className="space-y-4">
+                {userApplications
+                  .filter((a) => a.status === "UNSEALED")
+                  .map((item) => (
+                    <div
+                      key={item.applicationId}
+                      className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-3"
                     >
-                      {item.result}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+                        <div className="flex-1">
+                          <span className="text-[10px] font-mono font-bold text-[#1b4e7e]">
+                            {item.applicationId}
+                          </span>
+
+                          <h3 className="text-sm font-bold text-slate-800 mt-1">
+                            {item.tenderTitle || "Public Procurement Package"}
+                          </h3>
+
+                          <p className="text-xs text-slate-500 mt-1">
+                            {item.department || "Government Directorate"}
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-5 text-xs">
+                          <div>
+                            <p className="text-slate-400 text-[10px]">Location</p>
+                            <p className="font-bold text-slate-700 mt-1">
+                              {item.location || "Gujarat"}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-slate-400 text-[10px]">Applied On</p>
+                            <p className="font-bold text-slate-700 mt-1">
+                              {item.submittedAt ? new Date(item.submittedAt).toLocaleDateString('en-GB') : 'N/A'}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-slate-400 text-[10px]">Est. Value</p>
+                            <p className="font-bold text-slate-700 mt-1">
+                              {item.value || "N/A"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <span className="px-3 py-1.5 rounded-lg text-[10px] font-bold whitespace-nowrap bg-emerald-50 text-emerald-700 border border-emerald-100">
+                          EVALUATED
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500 space-y-2">
+                <p className="text-sm font-semibold">No evaluated historical applications yet.</p>
+                <p className="text-xs text-slate-400">Applications will appear in past history once their submission deadline closes and bids are unsealed.</p>
+              </div>
+            )}
           </section>
         )}
 
@@ -2722,88 +2668,88 @@ export default function DashboardPage() {
                 </h2>
 
                 <p className="text-sm text-slate-500 mt-1">
-                  Tenders that will be opening soon.
+                  Active and upcoming tenders in the procurement queue.
                 </p>
               </div>
 
               <span className="px-3 py-1.5 rounded-lg bg-violet-50 text-violet-700 text-xs font-bold border border-violet-100">
-                {upcomingTenderData.length} Upcoming
+                {tenders.length} Active / Upcoming
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {upcomingTenderData.map((tender) => (
-                <div
-                  key={tender.id}
-                  className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow"
-                >
-                  <div className="flex justify-between items-start gap-3">
-                    <div>
-                      <span className="text-[10px] font-bold text-[#1b4e7e]">
-                        {tender.id}
-                      </span>
-
-                      <h3 className="text-sm font-bold text-slate-800 mt-1">
-                        {tender.title}
-                      </h3>
-
-                      <p className="text-xs text-slate-500 mt-1">
-                        {tender.department}
-                      </p>
-                    </div>
-
-                    <span className="px-2 py-1 rounded-md bg-violet-50 text-violet-700 text-[10px] font-bold">
-                      UPCOMING
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 mt-5">
-                    <div className="bg-slate-50 rounded-lg p-3">
-                      <p className="text-[10px] text-slate-400">Category</p>
-
-                      <p className="text-xs font-bold text-slate-700 mt-1">
-                        {tender.category}
-                      </p>
-                    </div>
-
-                    <div className="bg-slate-50 rounded-lg p-3">
-                      <p className="text-[10px] text-slate-400">Location</p>
-
-                      <p className="text-xs font-bold text-slate-700 mt-1">
-                        {tender.location}
-                      </p>
-                    </div>
-
-                    <div className="bg-slate-50 rounded-lg p-3">
-                      <p className="text-[10px] text-slate-400">Tender Value</p>
-
-                      <p className="text-xs font-bold text-slate-700 mt-1">
-                        {tender.value}
-                      </p>
-                    </div>
-
-                    <div className="bg-slate-50 rounded-lg p-3">
-                      <p className="text-[10px] text-slate-400">Opening Date</p>
-
-                      <p className="text-xs font-bold text-[#1b4e7e] mt-1">
-                        {tender.openingDate}
-                      </p>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      alert(
-                        `${tender.title} will open on ${tender.openingDate}`,
-                      );
-                    }}
-                    className="w-full mt-5 border border-[#1b4e7e]/20 text-[#1b4e7e] hover:bg-[#1b4e7e] hover:text-white py-2.5 rounded-lg text-xs font-bold transition-colors"
+            {tenders.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {tenders.map((tender) => (
+                  <div
+                    key={tender.id}
+                    className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between"
                   >
-                    View Tender Information
-                  </button>
-                </div>
-              ))}
-            </div>
+                    <div>
+                      <div className="flex justify-between items-start gap-3">
+                        <div>
+                          <span className="text-[10px] font-bold text-[#1b4e7e]">
+                            {tender.id}
+                          </span>
+
+                          <h3 className="text-sm font-bold text-slate-800 mt-1">
+                            {tender.title}
+                          </h3>
+
+                          <p className="text-xs text-slate-500 mt-1">
+                            {tender.dept}
+                          </p>
+                        </div>
+
+                        <span className="px-2 py-1 rounded-md bg-violet-50 text-violet-700 text-[10px] font-bold shrink-0">
+                          ACTIVE
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 mt-5">
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-[10px] text-slate-400">Match</p>
+                          <p className="text-xs font-bold text-slate-700 mt-1">
+                            {tender.match}
+                          </p>
+                        </div>
+
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-[10px] text-slate-400">Location</p>
+                          <p className="text-xs font-bold text-slate-700 mt-1">
+                            {tender.location}
+                          </p>
+                        </div>
+
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-[10px] text-slate-400">Value</p>
+                          <p className="text-xs font-bold text-slate-700 mt-1">
+                            {tender.value}
+                          </p>
+                        </div>
+
+                        <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-[10px] text-slate-400">Closing</p>
+                          <p className="text-xs font-bold text-red-600 mt-1">
+                            {tender.deadline}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => setSelectedTender(tender)}
+                      className="w-full mt-5 bg-[#1b4e7e] hover:bg-[#163f65] text-white py-2.5 rounded-lg text-xs font-bold cursor-pointer"
+                    >
+                      View Details & Apply
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-500">
+                <p className="text-sm font-semibold">No upcoming tenders scheduled.</p>
+              </div>
+            )}
           </section>
         )}
       </main>
@@ -3180,25 +3126,42 @@ export default function DashboardPage() {
                     />
                   </svg>
                 </div>
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <h4 className="text-sm font-bold text-slate-800">
-                    Application Submitted!
+                    Application Submitted Successfully
                   </h4>
                   <p className="text-[11px] text-slate-500 max-w-xs leading-relaxed">
                     Your bid for{" "}
                     <span className="font-bold text-slate-700">
                       {quickApplyTender.title}
                     </span>{" "}
-                    has been published successfully.
+                    has been received and recorded.
                   </p>
-                  <div className="bg-slate-50 p-2 rounded border border-slate-100 text-[10px] text-slate-400 font-mono select-all">
-                    Bid Sync Token: GeM-VAULT-228749
+                  <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 text-[10px] space-y-1.5 text-left font-mono">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Application ID:</span>
+                      <span className="font-bold text-slate-800 select-all">
+                        {sealedReceipt?.applicationId || `APP-${quickApplyTender.id}-SUBMITTED`}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Status:</span>
+                      <span className="font-bold text-emerald-700">
+                        Submitted & Recorded
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Tender ID:</span>
+                      <span className="text-slate-700 font-semibold">
+                        {quickApplyTender.id}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setQuickApplyTender(null)}
-                  className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-sm mt-2"
+                  className="px-6 py-2 bg-[#1b4e7e] hover:bg-[#133c62] text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-sm mt-2"
                 >
                   Return to Dashboard
                 </button>
