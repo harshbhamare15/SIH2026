@@ -20,42 +20,34 @@ export default function LoginComponent() {
     }
   }, []);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    try {
+      setIsLoading(true);
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
-    // Check if user is registered in localStorage
-    const storedProfile = localStorage.getItem('user-profile');
-    let userProfile = null;
-    
-    if (storedProfile) {
-      userProfile = JSON.parse(storedProfile);
-    }
+      const data = await res.json();
 
-    // Direct Login Flow validation
-    if (userProfile && userProfile.email === email) {
-      if (userProfile.password === password) {
-        // Correct credentials
-        localStorage.setItem('logged-in-user', JSON.stringify(userProfile));
-        router.push('/dashboard');
-        return;
-      } else {
-        alert('Incorrect password. Please try again.');
+      if (!res.ok) {
+        alert(data.error || 'Login failed. Please check your credentials.');
         return;
       }
+
+      // Store authenticated user profile in localStorage
+      localStorage.setItem('logged-in-user', JSON.stringify(data.user));
+      router.push('/dashboard');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Network error';
+      alert('Login error: ' + msg);
+    } finally {
+      setIsLoading(false);
     }
-
-    // Default simulated user for direct login testing without registration
-    const defaultUser = {
-      fullName: 'Contractor John Doe',
-      email: email,
-      orgName: 'JD Construction PSU',
-      mobile: '9876543210',
-      address: 'Sector 4, Dwarka, New Delhi, India'
-    };
-
-    localStorage.setItem('logged-in-user', JSON.stringify(defaultUser));
-    alert('Direct login successful (Simulated Account)! Redirecting to home dashboard...');
-    router.push('/dashboard');
   };
 
   return (

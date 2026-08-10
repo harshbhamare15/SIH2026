@@ -27,20 +27,26 @@ export default function RegisterComponent() {
   const [pincode, setPincode] = useState('');
   const [country, setCountry] = useState('India');
 
-  const [captchaInput, setCaptchaInput] = useState('');
-  const [captchaCode, setCaptchaCode] = useState('74289');
-  const [agreed, setAgreed] = useState(false);
-
-  const refreshCaptcha = () => {
+  const generateCaptchaCode = () => {
     const chars = '0123456789';
     let code = '';
     for (let i = 0; i < 5; i++) {
       code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    setCaptchaCode(code);
+    return code;
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const [captchaInput, setCaptchaInput] = useState('');
+  const [captchaCode, setCaptchaCode] = useState(() => generateCaptchaCode());
+  const [agreed, setAgreed] = useState(false);
+
+  const refreshCaptcha = () => {
+    setCaptchaCode(generateCaptchaCode());
+  };
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
       alert('Passwords do not match.');
@@ -55,31 +61,52 @@ export default function RegisterComponent() {
       return;
     }
 
-    // Save profile details to localStorage to wire up login authentication
-    const userProfile = {
-      fullName,
-      email,
-      mobile,
-      password,
-      orgType,
-      orgName,
-      pan,
-      gst,
-      address1,
-      address2,
-      city,
-      state,
-      district,
-      pincode,
-      country,
-      address: `${address1}, ${address2 ? address2 + ', ' : ''}${city}, ${state}, ${pincode}, ${country}`
-    };
-    
-    localStorage.setItem('user-profile', JSON.stringify(userProfile));
-    alert('Registration Successful! Redirecting to login page...');
-    
-    // Automatically redirect to the login page
-    router.push('/login?registered=true');
+    try {
+      setIsSubmitting(true);
+      const userProfile = {
+        fullName,
+        email,
+        mobile,
+        password,
+        orgType,
+        orgName,
+        pan,
+        gst,
+        address1,
+        address2,
+        city,
+        state,
+        district,
+        pincode,
+        country,
+        address: `${address1}, ${address2 ? address2 + ', ' : ''}${city}, ${state}, ${pincode}, ${country}`
+      };
+
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userProfile),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || 'Registration failed. Please try again.');
+        return;
+      }
+
+      // Save profile details to localStorage to wire up login authentication
+      localStorage.setItem('user-profile', JSON.stringify(data.user || userProfile));
+      alert('Registration Successful! Redirecting to login page...');
+      
+      // Automatically redirect to the login page
+      router.push('/login?registered=true');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Network error';
+      alert('Registration error: ' + msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const statesList = [
