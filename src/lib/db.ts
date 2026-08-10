@@ -139,11 +139,51 @@ export async function ensureTablesExist(): Promise<void> {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `;
 
+  const createAuctionsTableQuery = `
+    CREATE TABLE IF NOT EXISTS auctions (
+      id VARCHAR(100) PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      client VARCHAR(255) NOT NULL,
+      location VARCHAR(255) NOT NULL,
+      startingValue VARCHAR(100) NOT NULL,
+      lowestBid DOUBLE NOT NULL DEFAULT 0,
+      duration VARCHAR(100) NOT NULL,
+      status VARCHAR(50) NOT NULL DEFAULT 'Live',
+      type VARCHAR(50) NOT NULL DEFAULT 'sub',
+      category VARCHAR(100) NULL DEFAULT 'General',
+      mode VARCHAR(50) NOT NULL DEFAULT 'Reverse',
+      tenderRef VARCHAR(100) NULL,
+      winnerApplicantId VARCHAR(100) NULL,
+      winnerName VARCHAR(255) NULL,
+      winnerOrg VARCHAR(255) NULL,
+      winnerAmount VARCHAR(100) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `;
+
+  const createAuctionBidsTableQuery = `
+    CREATE TABLE IF NOT EXISTS auction_bids (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      auctionId VARCHAR(100) NOT NULL,
+      bidderId VARCHAR(100) NULL,
+      bidderName VARCHAR(255) NOT NULL,
+      bidderOrg VARCHAR(255) NULL,
+      bidAmount DOUBLE NOT NULL,
+      bidHash VARCHAR(128) NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      INDEX idx_ab_auction (auctionId),
+      INDEX idx_ab_created (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  `;
+
   await db.query(createUsersTableQuery);
   await db.query(createAdminTableQuery);
   await db.query(createTendersTableQuery);
   await db.query(createApplicationsTableQuery);
   await db.query(createNetworkVaultTableQuery);
+  await db.query(createAuctionsTableQuery);
+  await db.query(createAuctionBidsTableQuery);
 
   // Safe migrations for tender_applications table
   try {

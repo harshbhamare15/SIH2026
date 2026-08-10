@@ -35,6 +35,10 @@ interface Auction {
   startingValue: string;
   duration: string;
   status: string;
+  lowestBid?: number;
+  type?: string;
+  category?: string;
+  mode?: string;
 }
 
 export default function AdminDashboard() {
@@ -49,6 +53,17 @@ export default function AdminDashboard() {
   const [selectedAuditTender, setSelectedAuditTender] = useState<Tender | null>(null);
   const [isDeletingTender, setIsDeletingTender] = useState(false);
 
+  // Auction DB Engine State
+  const [auctions, setAuctions] = useState<Auction[]>([]);
+  const [isLoadingAuctions, setIsLoadingAuctions] = useState(false);
+  const [isSubmittingAuction, setIsSubmittingAuction] = useState(false);
+  const [isDeletingAuction, setIsDeletingAuction] = useState(false);
+  const [selectedLiveAuction, setSelectedLiveAuction] = useState<Auction | null>(null);
+  const [liveAuctionData, setLiveAuctionData] = useState<any | null>(null);
+  const [isLoadingLiveAuction, setIsLoadingLiveAuction] = useState(false);
+  const [auctionBidCounts, setAuctionBidCounts] = useState<Record<string, { totalBids: number; distinctBidders: number; lowestBid: number }>>({});
+  const [liveAuctionTab, setLiveAuctionTab] = useState<'leaderboard' | 'stream'>('leaderboard');
+
   // Application & Axiom Cryptographic Engine State
   const [applicationSummary, setApplicationSummary] = useState<Record<string, any>>({});
   const [tenderAppData, setTenderAppData] = useState<any | null>(null);
@@ -58,27 +73,6 @@ export default function AdminDashboard() {
   // Live Countdown & Timelock Engine State
   const [now, setNow] = useState(Date.now());
   const [tenderDeadlines, setTenderDeadlines] = useState<Record<string, number>>({});
-
-  const [auctions, setAuctions] = useState<Auction[]>([
-    {
-      id: 'OSD/7734',
-      title: 'Office Stationery Supply',
-      client: 'Ministry of Commerce',
-      location: 'Delhi NCR',
-      startingValue: '₹12,500',
-      duration: '03:43 mins',
-      status: 'Live'
-    },
-    {
-      id: 'HEAVY/9921',
-      title: 'Steel Beam Procurement',
-      client: 'National Infrastructure Dev',
-      location: 'Gujarat',
-      startingValue: '₹4,50,000',
-      duration: '14:20 mins',
-      status: 'Live'
-    }
-  ]);
 
   // Form Coordinates for Adding Tenders
   const [tenderId, setTenderId] = useState('');
@@ -98,7 +92,11 @@ export default function AdminDashboard() {
   const [auctionClient, setAuctionClient] = useState('');
   const [auctionLocation, setAuctionLocation] = useState('');
   const [auctionValue, setAuctionValue] = useState('');
-  const [auctionDuration, setAuctionDuration] = useState('');
+  const [auctionDays, setAuctionDays] = useState('0');
+  const [auctionHours, setAuctionHours] = useState('0');
+  const [auctionMinutes, setAuctionMinutes] = useState('5');
+  const [auctionSeconds, setAuctionSeconds] = useState('0');
+  const [auctionCategory, setAuctionCategory] = useState('Consumables & Office Supplies');
 
   // Validate session on mount
   // Normalizers to convert user dashboard schema schemas to Admin dashboard schemas
@@ -128,7 +126,11 @@ export default function AdminDashboard() {
       location: item.location || '',
       startingValue: item.startingValue || `₹${(item.lowestBid || 12500).toLocaleString()}`,
       duration: item.duration || item.timeLeft || '03:45 mins',
-      status: item.status === 'active' || item.status === 'placed' ? 'Live' : (item.status || 'Live')
+      status: item.status === 'active' || item.status === 'placed' ? 'Live' : (item.status || 'Live'),
+      lowestBid: typeof item.lowestBid === 'number' ? item.lowestBid : undefined,
+      type: item.type || 'sub',
+      category: item.category || 'General',
+      mode: item.mode || 'Reverse',
     }));
   };
 
@@ -206,19 +208,93 @@ export default function AdminDashboard() {
         }
       };
 
-      loadTenders();
-      loadAppSummary();
-
-      const savedAuctions = localStorage.getItem('user-auctions');
-      if (savedAuctions) {
+      // Fetch persistent live auctions from MySQL backend
+      const loadAuctions = async () => {
         try {
-          setAuctions(normalizeAdminAuctions(JSON.parse(savedAuctions)));
+          setIsLoadingAuctions(true);
+          const res = await fetch('/api/auctions');
+          const data = await res.json();
+          if (res.ok && Array.isArray(data.auctions)) {
+            const normalized = normalizeAdminAuctions(data.auctions);
+            setAuctions(normalized);
+            localStorage.setItem('user-auctions', JSON.stringify(data.auctions));
+          } else {
+            const savedAuctions = localStorage.getItem('user-auctions');
+            if (savedAuctions) {
+              setAuctions(normalizeAdminAuctions(JSON.parse(savedAuctions)));
+            }
+          }
         } catch (e) {
-          console.error(e);
+          console.error('Error fetching auctions from database:', e);
+          const savedAuctions = localStorage.getItem('user-auctions');
+          if (savedAuctions) {
+            setAuctions(normalizeAdminAuctions(JSON.parse(savedAuctions)));
+          }
+        } finally {
+          setIsLoadingAuctions(false);
         }
-      }
+      };
+
+      // Fetch summary bid counts across all auctions
+      const loadAuctionCounts = async () => {
+        try {
+          const res = await fetch('/api/auctions/bids');
+          const data = await res.json();
+          if (res.ok && data.counts) {
+            setAuctionBidCounts(data.counts);
+          }
+        } catch (e) {
+          console.error('Error fetching auction bid counts:', e);
+        }
+      };
+
+      loadTenders();
+      loadAuctions();
+      loadAppSummary();
+      loadAuctionCounts();
     }
   }, [router]);
+
+  // Fetch full live auction room details for a specific auction
+  const fetchLiveAuctionBids = async (auctionId: string) => {
+    try {
+      setIsLoadingLiveAuction(true);
+      const res = await fetch(`/api/auctions/bids?auctionId=${encodeURIComponent(auctionId)}`);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setLiveAuctionData(data);
+        if (data.stats && typeof data.stats.currentLowestBid === 'number') {
+          setAuctions(prev =>
+            prev.map(a =>
+              a.id === auctionId
+                ? { ...a, lowestBid: data.stats.currentLowestBid, startingValue: `₹${data.stats.currentLowestBid.toLocaleString()}` }
+                : a
+            )
+          );
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching live auction room data:', e);
+    } finally {
+      setIsLoadingLiveAuction(false);
+    }
+  };
+
+  // Live polling effect when Live Auction Room modal is open (every 2.5 seconds)
+  useEffect(() => {
+    if (!selectedLiveAuction) {
+      setLiveAuctionData(null);
+      return;
+    }
+
+    fetchLiveAuctionBids(selectedLiveAuction.id);
+
+    const interval = setInterval(() => {
+      fetchLiveAuctionBids(selectedLiveAuction.id);
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [selectedLiveAuction]);
 
   // Real-time ticking interval for live countdowns
   useEffect(() => {
@@ -565,38 +641,107 @@ export default function AdminDashboard() {
   };
 
   // Add Auction handler
-  const handleAddAuction = (e: React.FormEvent) => {
+  const handleAddAuction = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!auctionId || !auctionTitle || !auctionClient || !auctionLocation || !auctionValue || !auctionDuration) {
+    if (!auctionId || !auctionTitle || !auctionClient || !auctionLocation || !auctionValue) {
       alert('Please fill out all fields in the Auction form.');
       return;
     }
 
-    const newAuction: Auction = {
-      id: auctionId,
-      title: auctionTitle,
-      client: auctionClient,
-      location: auctionLocation,
-      startingValue: auctionValue,
-      duration: auctionDuration,
-      status: 'Live'
+    const d = parseInt(auctionDays || '0', 10);
+    const h = parseInt(auctionHours || '0', 10);
+    const m = parseInt(auctionMinutes || '0', 10);
+    const s = parseInt(auctionSeconds || '0', 10);
+
+    let computedDuration = '';
+    if (d > 0) computedDuration += `${d}d `;
+    if (h > 0 || d > 0) computedDuration += `${String(h).padStart(2, '0')}:`;
+    computedDuration += `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')} mins`;
+
+    const newAuctionData = {
+      id: auctionId.trim(),
+      title: auctionTitle.trim(),
+      client: auctionClient.trim(),
+      location: auctionLocation.trim(),
+      startingValue: auctionValue.trim().startsWith('₹') ? auctionValue.trim() : `₹${auctionValue.trim()}`,
+      duration: computedDuration.trim() || '05:00 mins',
+      status: 'Live',
+      type: 'arena',
+      category: auctionCategory,
+      mode: 'Reverse',
     };
 
-    const updated = [newAuction, ...auctions];
-    setAuctions(updated);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('user-auctions', JSON.stringify(updated));
-    }
-    alert('Auction added successfully!');
+    try {
+      setIsSubmittingAuction(true);
+      const res = await fetch('/api/auctions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAuctionData),
+      });
 
-    // Clear inputs
-    setAuctionId('');
-    setAuctionTitle('');
-    setAuctionClient('');
-    setAuctionLocation('');
-    setAuctionValue('');
-    setAuctionDuration('');
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || 'Failed to publish auction to database.');
+        return;
+      }
+
+      const publishedAuction = data.auction || newAuctionData;
+      const normalized = normalizeAdminAuctions([publishedAuction])[0];
+      const updated = [normalized, ...auctions.filter(a => a.id !== normalized.id)];
+      setAuctions(updated);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('user-auctions', JSON.stringify(updated));
+      }
+      alert('Auction added and published to database successfully!');
+
+      // Clear inputs
+      setAuctionId('');
+      setAuctionTitle('');
+      setAuctionClient('');
+      setAuctionLocation('');
+      setAuctionValue('');
+      setAuctionDays('0');
+      setAuctionHours('0');
+      setAuctionMinutes('5');
+      setAuctionSeconds('0');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Network error';
+      alert('Publish auction error: ' + msg);
+    } finally {
+      setIsSubmittingAuction(false);
+    }
+  };
+
+  // Delete / Revoke Auction handler
+  const handleDeleteAuction = async (id: string) => {
+    if (!confirm(`Are you sure you want to revoke and delete Auction ${id} from the database?`)) return;
+
+    try {
+      setIsDeletingAuction(true);
+      const res = await fetch(`/api/auctions?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || 'Failed to delete auction.');
+        return;
+      }
+
+      const updated = auctions.filter(a => a.id !== id);
+      setAuctions(updated);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('user-auctions', JSON.stringify(updated));
+      }
+      alert('Auction removed successfully.');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Network error';
+      alert('Delete auction error: ' + msg);
+    } finally {
+      setIsDeletingAuction(false);
+    }
   };
 
   if (!admin) {
@@ -917,54 +1062,99 @@ export default function AdminDashboard() {
             
             {/* Left: Active Auctions List View */}
             <div className="lg:col-span-2 space-y-4">
-              <h2 className="text-sm font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                <span>Active Reverse Auctions Arena</span>
-                <span className="bg-slate-200 text-slate-700 text-xs px-2 py-0.5 rounded-full">{auctions.length}</span>
-              </h2>
-
-              <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 no-scrollbar">
-                {auctions.map((a, idx) => (
-                  <div key={idx} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4 hover:border-slate-300 transition-colors">
-                    
-                    {/* Header */}
-                    <div className="flex justify-between items-start gap-4">
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">AUCTION ID: {a.id}</span>
-                        <h3 className="text-sm font-bold text-slate-800 mt-1 line-clamp-1">{a.title}</h3>
-                      </div>
-                      <span className="bg-rose-50 text-rose-700 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1.5 animate-pulse">
-                        <span className="w-1.5 h-1.5 bg-rose-600 rounded-full"></span>
-                        {a.status}
-                      </span>
-                    </div>
-
-                    {/* Meta parameters */}
-                    <div className="grid grid-cols-3 gap-4 pt-1 text-xs">
-                      <div>
-                        <span className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Agency Client</span>
-                        <span className="font-semibold text-slate-700 line-clamp-1">{a.client}</span>
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Location</span>
-                        <span className="font-semibold text-slate-700">{a.location}</span>
-                      </div>
-                      <div>
-                        <span className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Current Lowest Bid</span>
-                        <span className="font-bold text-slate-800">{a.startingValue}</span>
-                      </div>
-                    </div>
-
-                    {/* Footer */}
-                    <div className="flex justify-between items-center border-t border-slate-100 pt-3 text-xs">
-                      <span className="text-slate-500 font-medium">Bidding Closes in: <span className="font-bold text-[#1b4e7e]">{a.duration}</span></span>
-                      <button className="text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors cursor-not-allowed" disabled>
-                        Monitor Arena
-                      </button>
-                    </div>
-
-                  </div>
-                ))}
+              <div className="flex justify-between items-center">
+                <h2 className="text-sm font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
+                  <span>Active Reverse Auctions Arena</span>
+                  <span className="bg-slate-200 text-slate-700 text-xs px-2 py-0.5 rounded-full">{auctions.length}</span>
+                </h2>
+                {isLoadingAuctions && (
+                  <span className="text-[11px] text-[#1b4e7e] font-bold animate-pulse flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-[#1b4e7e] animate-ping"></span>
+                    Syncing Auctions with Database...
+                  </span>
+                )}
               </div>
+
+              {isLoadingAuctions && auctions.length === 0 ? (
+                <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400">
+                  <div className="animate-spin w-6 h-6 border-2 border-[#1b4e7e] border-t-transparent rounded-full mx-auto mb-2"></div>
+                  <span className="text-xs font-semibold">Loading live reverse auctions from database...</span>
+                </div>
+              ) : auctions.length === 0 ? (
+                <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400">
+                  <p className="text-xs font-semibold">No active auctions found. Create a new auction using the form on the right.</p>
+                </div>
+              ) : (
+                <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2 no-scrollbar">
+                  {auctions.map((a, idx) => (
+                    <div key={idx} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4 hover:border-slate-300 transition-colors">
+                      
+                      {/* Header */}
+                      <div className="flex justify-between items-start gap-4">
+                        <div>
+                          <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">AUCTION ID: {a.id}</span>
+                          <h3 className="text-sm font-bold text-slate-800 mt-1 line-clamp-1">{a.title}</h3>
+                        </div>
+                        <span className="bg-rose-50 text-rose-700 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1.5 animate-pulse">
+                          <span className="w-1.5 h-1.5 bg-rose-600 rounded-full"></span>
+                          {a.status}
+                        </span>
+                      </div>
+
+                      {/* Meta parameters */}
+                      <div className="grid grid-cols-3 gap-4 pt-1 text-xs">
+                        <div>
+                          <span className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Agency Client</span>
+                          <span className="font-semibold text-slate-700 line-clamp-1">{a.client}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Location</span>
+                          <span className="font-semibold text-slate-700">{a.location}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Current Lowest Bid</span>
+                          <span className="font-bold text-slate-800">{a.startingValue}</span>
+                        </div>
+                      </div>
+
+                      {/* Footer */}
+                      <div className="flex flex-wrap justify-between items-center border-t border-slate-100 pt-3 gap-2.5 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-500 font-medium">Closes in: <span className="font-bold text-[#1b4e7e]">{a.duration}</span></span>
+                          <span className="px-2 py-0.5 rounded bg-blue-50 text-[#1b4e7e] font-bold text-[10px] border border-blue-100 flex items-center gap-1">
+                            <svg className="w-3 h-3 text-[#1b4e7e]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                            </svg>
+                            <span>{auctionBidCounts[a.id]?.distinctBidders || 0} Buyers</span>
+                            <span className="text-slate-300">•</span>
+                            <span>{auctionBidCounts[a.id]?.totalBids || 0} Bids</span>
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedLiveAuction(a)}
+                            className="px-3.5 py-1.5 bg-[#1b4e7e] hover:bg-[#133c62] text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm cursor-pointer"
+                          >
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                            <span>Live Track & Bids Room</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAuction(a.id)}
+                            disabled={isDeletingAuction}
+                            className="text-xs font-bold text-rose-600 hover:text-rose-800 hover:underline transition-colors cursor-pointer px-1 py-1"
+                          >
+                            Revoke
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Right: Add New Auction Form */}
@@ -984,77 +1174,138 @@ export default function AdminDashboard() {
                     required
                     value={auctionId}
                     onChange={(e) => setAuctionId(e.target.value)}
-                    placeholder="e.g. RA/OSD/7735"
+                    placeholder="e.g. AUC/REV/2026/0014"
                     className="w-full bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-3 text-xs font-medium text-slate-700 focus:outline-none focus:border-[#1b4e7e] transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-extrabold text-slate-400 block uppercase mb-1 tracking-wider">Auction Item Title</label>
+                  <label className="text-[10px] font-extrabold text-slate-400 block uppercase mb-1 tracking-wider">Auction Item / Lot Title</label>
                   <input
                     type="text"
                     required
                     value={auctionTitle}
                     onChange={(e) => setAuctionTitle(e.target.value)}
-                    placeholder="e.g. Supply of Office Stationery - Phase II"
+                    placeholder="e.g. Reverse Auction for Supply of Medical Diagnostic Monitors"
                     className="w-full bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-3 text-xs font-medium text-slate-700 focus:outline-none focus:border-[#1b4e7e] transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="text-[10px] font-extrabold text-slate-400 block uppercase mb-1 tracking-wider">Client Agency Name</label>
+                  <label className="text-[10px] font-extrabold text-slate-400 block uppercase mb-1 tracking-wider">Procuring Client / Agency</label>
                   <input
                     type="text"
                     required
                     value={auctionClient}
                     onChange={(e) => setAuctionClient(e.target.value)}
-                    placeholder="e.g. All India Institute of Medical Sciences"
+                    placeholder="e.g. Ministry of Health & Family Welfare"
                     className="w-full bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-3 text-xs font-medium text-slate-700 focus:outline-none focus:border-[#1b4e7e] transition-colors"
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="text-[10px] font-extrabold text-slate-400 block uppercase mb-1 tracking-wider">Location</label>
+                    <label className="text-[10px] font-extrabold text-slate-400 block uppercase mb-1 tracking-wider">Location / Jurisdiction</label>
                     <input
                       type="text"
                       required
                       value={auctionLocation}
                       onChange={(e) => setAuctionLocation(e.target.value)}
-                      placeholder="e.g. Delhi NCR"
+                      placeholder="e.g. Delhi NCR / Gujarat"
                       className="w-full bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-3 text-xs font-medium text-slate-700 focus:outline-none focus:border-[#1b4e7e] transition-colors"
                     />
                   </div>
                   <div>
-                    <label className="text-[10px] font-extrabold text-slate-400 block uppercase mb-1 tracking-wider">Start Price</label>
+                    <label className="text-[10px] font-extrabold text-slate-400 block uppercase mb-1 tracking-wider">Ceiling / Base Starting Price</label>
                     <input
                       type="text"
                       required
                       value={auctionValue}
                       onChange={(e) => setAuctionValue(e.target.value)}
-                      placeholder="e.g. ₹15,000"
+                      placeholder="e.g. ₹25,00,000"
                       className="w-full bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-3 text-xs font-medium text-slate-700 focus:outline-none focus:border-[#1b4e7e] transition-colors"
                     />
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-[10px] font-extrabold text-slate-400 block uppercase mb-1 tracking-wider">Arena Duration</label>
-                  <input
-                    type="text"
-                    required
-                    value={auctionDuration}
-                    onChange={(e) => setAuctionDuration(e.target.value)}
-                    placeholder="e.g. 05:00 mins"
-                    className="w-full bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-3 text-xs font-medium text-slate-700 focus:outline-none focus:border-[#1b4e7e] transition-colors"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-extrabold text-slate-400 block uppercase tracking-wider">Auction Duration Timer</label>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      <div>
+                        <span className="text-[9px] font-bold text-slate-400 block mb-0.5 text-center">Days</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={auctionDays}
+                          onChange={(e) => setAuctionDays(e.target.value)}
+                          placeholder="0"
+                          className="w-full text-center bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-1 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-[#1b4e7e] transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-slate-400 block mb-0.5 text-center">Hours</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="23"
+                          value={auctionHours}
+                          onChange={(e) => setAuctionHours(e.target.value)}
+                          placeholder="0"
+                          className="w-full text-center bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-1 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-[#1b4e7e] transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-slate-400 block mb-0.5 text-center">Mins</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="59"
+                          value={auctionMinutes}
+                          onChange={(e) => setAuctionMinutes(e.target.value)}
+                          placeholder="5"
+                          className="w-full text-center bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-1 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-[#1b4e7e] transition-colors"
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-slate-400 block mb-0.5 text-center">Secs</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="59"
+                          value={auctionSeconds}
+                          onChange={(e) => setAuctionSeconds(e.target.value)}
+                          placeholder="0"
+                          className="w-full text-center bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-1 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:border-[#1b4e7e] transition-colors"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-extrabold text-slate-400 block uppercase mb-1 tracking-wider">Procurement Category</label>
+                    <select
+                      value={auctionCategory}
+                      onChange={(e) => setAuctionCategory(e.target.value)}
+                      className="w-full bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-2 text-xs font-medium text-slate-700 focus:outline-none focus:border-[#1b4e7e] cursor-pointer mt-3.5"
+                    >
+                      <option value="Consumables & Office Supplies">Consumables & Office Supplies</option>
+                      <option value="Heavy Machinery & Fleet">Heavy Machinery & Fleet</option>
+                      <option value="Construction & Infrastructure">Construction & Infrastructure</option>
+                      <option value="Medical Equipment & Biotech">Medical Equipment & Biotech</option>
+                      <option value="Enterprise IT & Computing">Enterprise IT & Computing</option>
+                    </select>
+                  </div>
                 </div>
 
                 <button
                   type="submit"
-                  className="w-full bg-[#1b4e7e] hover:bg-[#133c62] text-white text-xs font-bold py-2.5 rounded-lg cursor-pointer transition-colors shadow mt-2"
+                  disabled={isSubmittingAuction}
+                  className="w-full bg-[#1b4e7e] hover:bg-[#133c62] disabled:opacity-50 text-white text-xs font-bold py-2.5 rounded-lg cursor-pointer transition-colors shadow mt-2 flex items-center justify-center gap-2"
                 >
-                  Initiate Reverse Auction
+                  {isSubmittingAuction && (
+                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  )}
+                  <span>{isSubmittingAuction ? 'Publishing Live Auction...' : 'Publish Live Auction Notice'}</span>
                 </button>
               </form>
             </div>
@@ -1389,7 +1640,302 @@ export default function AdminDashboard() {
         </div>
       )}
 
-      {/* 4. Footer Simple */}
+      {/* 4. Live Auction Tracking Room Modal Popup */}
+      {selectedLiveAuction && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md transition-opacity animate-in fade-in duration-200"
+          onClick={() => setSelectedLiveAuction(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-4xl w-full max-h-[92vh] overflow-hidden flex flex-col text-left"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top Header Banner */}
+            <div className="bg-[#1b4e7e] text-white p-6 relative flex justify-between items-start">
+              <div className="space-y-1.5 pr-8">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="bg-amber-400 text-slate-900 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full">
+                    REVERSE ARENA LIVE MONITOR
+                  </span>
+                  <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1.5 animate-pulse">
+                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span>
+                    LIVE SOCKET FEED
+                  </span>
+                  <span className="text-white/60 text-[11px] font-mono">
+                    Auto-polling (2.5s)
+                  </span>
+                </div>
+
+                <h2 className="text-lg md:text-xl font-black tracking-tight mt-1">
+                  {selectedLiveAuction.title}
+                </h2>
+                <div className="flex flex-wrap items-center gap-4 text-xs text-white/80">
+                  <span className="font-mono bg-white/10 px-2 py-0.5 rounded">ID: {selectedLiveAuction.id}</span>
+                  <span>Agency: <strong className="text-white">{selectedLiveAuction.client}</strong></span>
+                  <span>Location: <strong className="text-white">{selectedLiveAuction.location}</strong></span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => fetchLiveAuctionBids(selectedLiveAuction.id)}
+                  title="Force Refresh"
+                  className="p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                >
+                  <svg className={`w-4 h-4 ${isLoadingLiveAuction ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                  </svg>
+                  <span className="hidden sm:inline">Refresh</span>
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setSelectedLiveAuction(null)}
+                  className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-lg transition-colors cursor-pointer"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Scrollable Content Body */}
+            <div className="p-6 overflow-y-auto space-y-6 flex-1 bg-slate-50/50">
+              
+              {/* 4 Stat Overview Cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
+                  <div className="flex items-center justify-between text-slate-400">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider">Buyers Entered</span>
+                    <svg className="w-4 h-4 text-[#1b4e7e]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Z" />
+                    </svg>
+                  </div>
+                  <div className="text-2xl font-black text-slate-800 mt-2">
+                    {liveAuctionData?.stats?.distinctBidders || 0}
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-medium block mt-0.5">
+                    {liveAuctionData?.stats?.totalBids || 0} total bid rounds placed
+                  </span>
+                </div>
+
+                <div className="bg-white border border-emerald-200 rounded-xl p-4 shadow-xs">
+                  <div className="flex items-center justify-between text-emerald-600">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider">Leading Highest Bid (H1)</span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                  </div>
+                  <div className="text-2xl font-black text-emerald-700 mt-2">
+                    ₹{(liveAuctionData?.stats?.currentHighestBid || selectedLiveAuction.lowestBid || 0).toLocaleString()}
+                  </div>
+                  <span className="text-[10px] text-emerald-800 font-bold block mt-0.5 truncate">
+                    {liveAuctionData?.stats?.leadingBidder ? `Leader: ${liveAuctionData.stats.leadingBidder.bidderName}` : 'Base Starting Price'}
+                  </span>
+                </div>
+
+                <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Base Starting Price</span>
+                  <div className="text-2xl font-black text-slate-700 mt-2">
+                    {selectedLiveAuction.startingValue}
+                  </div>
+                  <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+                    Initial Reserve Threshold
+                  </span>
+                </div>
+
+                <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs">
+                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Total Price Growth</span>
+                  <div className="text-2xl font-black text-emerald-600 mt-2 flex items-center gap-1">
+                    <span>+{liveAuctionData?.stats?.percentageGrowth || '0.0%'}</span>
+                    <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+                    </svg>
+                  </div>
+                  <span className="text-[10px] text-slate-500 font-medium block mt-0.5">
+                    Surge +₹{(liveAuctionData?.stats?.priceGrowth || 0).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Live View Tabs */}
+              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+                <div className="bg-slate-100/90 px-4 py-2 border-b border-slate-200 flex items-center justify-between">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setLiveAuctionTab('leaderboard')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${liveAuctionTab === 'leaderboard' ? 'bg-[#1b4e7e] text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'}`}
+                    >
+                      Live Leaderboard & Ranks ({liveAuctionData?.leaderboard?.length || 0})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setLiveAuctionTab('stream')}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${liveAuctionTab === 'stream' ? 'bg-[#1b4e7e] text-white shadow-xs' : 'text-slate-600 hover:bg-slate-200/60'}`}
+                    >
+                      Chronological Activity Stream ({liveAuctionData?.bids?.length || 0})
+                    </button>
+                  </div>
+                  <span className="text-[10px] font-mono text-slate-400 font-bold hidden sm:inline">
+                    Updated: {new Date().toLocaleTimeString()}
+                  </span>
+                </div>
+
+                {/* Tab 1: Live Leaderboard View */}
+                {liveAuctionTab === 'leaderboard' && (
+                  <div className="p-4">
+                    {liveAuctionData?.leaderboard && liveAuctionData.leaderboard.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs text-left text-slate-700">
+                          <thead className="bg-slate-50 text-[10px] text-slate-400 uppercase tracking-wider font-extrabold border-b border-slate-200">
+                            <tr>
+                              <th className="px-4 py-3">Rank</th>
+                              <th className="px-4 py-3">Buyer / Contractor Name</th>
+                              <th className="px-4 py-3">Registered Organization</th>
+                              <th className="px-4 py-3">Best Submitted Bid (₹)</th>
+                              <th className="px-4 py-3">Rounds</th>
+                              <th className="px-4 py-3">Gap From H1</th>
+                              <th className="px-4 py-3">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {liveAuctionData.leaderboard.map((item: any, idx: number) => (
+                              <tr key={idx} className={`hover:bg-slate-50/70 transition-colors ${idx === 0 ? 'bg-emerald-50/40' : ''}`}>
+                                <td className="px-4 py-3.5">
+                                  <span className={`px-2 py-1 rounded text-[10px] font-black font-mono ${idx === 0 ? 'bg-amber-400 text-slate-900 shadow-xs' : 'bg-slate-100 text-slate-700'}`}>
+                                    {item.rank}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-3.5 font-bold text-slate-900 flex items-center gap-1.5">
+                                  {idx === 0 && <span className="text-amber-500">👑</span>}
+                                  <span>{item.bidderName}</span>
+                                </td>
+                                <td className="px-4 py-3.5 text-slate-600 font-medium">
+                                  {item.bidderOrg || 'Enterprise Contractor'}
+                                </td>
+                                <td className="px-4 py-3.5 font-mono font-black text-emerald-700 text-sm">
+                                  ₹{Number(item.bestBid).toLocaleString()}
+                                </td>
+                                <td className="px-4 py-3.5 font-mono text-slate-600">
+                                  {item.bidCount}
+                                </td>
+                                <td className="px-4 py-3.5 font-mono text-slate-500">
+                                  {idx === 0 ? (
+                                    <span className="text-emerald-600 font-bold">Leading H1</span>
+                                  ) : (
+                                    `-₹${Number(item.diffFromH1 || 0).toLocaleString()}`
+                                  )}
+                                </td>
+                                <td className="px-4 py-3.5">
+                                  {idx === 0 ? (
+                                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-extrabold border border-emerald-200">
+                                      H1 LEADING
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[10px] font-bold">
+                                      OUTBID (H{idx + 1})
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="py-12 text-center text-slate-400 space-y-2">
+                        <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
+                          <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Z" />
+                          </svg>
+                        </div>
+                        <p className="text-sm font-bold text-slate-600">Waiting for buyers to enter and submit reverse bids...</p>
+                        <p className="text-xs text-slate-400 max-w-md mx-auto">
+                          Starting Base Ceiling Price is <strong>{selectedLiveAuction.startingValue}</strong>. When vendors place lower bids in the reverse auction arena, their bids and real-time ranks will update here live.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Tab 2: Chronological Activity Stream */}
+                {liveAuctionTab === 'stream' && (
+                  <div className="p-4">
+                    {liveAuctionData?.bids && liveAuctionData.bids.length > 0 ? (
+                      <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+                        {liveAuctionData.bids.map((bid: any, idx: number) => (
+                          <div key={idx} className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-slate-900">{bid.bidderName}</span>
+                                <span className="text-[10px] text-slate-400">({bid.bidderOrg || 'Registered Contractor'})</span>
+                                {idx === 0 && (
+                                  <span className="px-2 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[9px] font-extrabold border border-emerald-200">
+                                    LATEST BID
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px] font-mono text-slate-400 flex items-center gap-2">
+                                <span>Tx Hash: <span className="text-[#1b4e7e] font-semibold">{bid.bidHash ? bid.bidHash.substring(0, 18) + '...' : '0xVerifiedHash'}</span></span>
+                                <span>•</span>
+                                <span>{new Date(bid.created_at).toLocaleTimeString()}</span>
+                              </div>
+                            </div>
+
+                            <div className="text-right">
+                              <span className="text-sm font-black text-emerald-700 font-mono block">
+                                ₹{Number(bid.bidAmount).toLocaleString()}
+                              </span>
+                              <span className="text-[9px] text-slate-400 font-medium">
+                                Submitted Lower Bid
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="py-12 text-center text-slate-400 space-y-2">
+                        <p className="text-sm font-bold text-slate-600">No bidding activity recorded yet.</p>
+                        <p className="text-xs text-slate-400">Every price drop and bid transaction will be logged with cryptographic verification hashes.</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Actions Footer */}
+            <div className="bg-slate-50 border-t border-slate-200 p-4 px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="text-xs text-slate-500 font-medium flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span>Active Live Reverse Bidding Session</span>
+              </div>
+
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => fetchLiveAuctionBids(selectedLiveAuction.id)}
+                  className="w-full sm:w-auto px-4 py-2 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                  </svg>
+                  <span>Refresh Feed</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedLiveAuction(null)}
+                  className="w-full sm:w-auto px-6 py-2 bg-[#1b4e7e] hover:bg-[#133c62] text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md"
+                >
+                  Close Live Room
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. Footer Simple */}
       <FooterSimple />
 
     </div>

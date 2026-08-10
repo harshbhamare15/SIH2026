@@ -171,10 +171,15 @@ function calculateHaversineDistance(lat1: number, lon1: number, lat2: number, lo
 interface ArenaAuctionItem {
   id: string;
   title: string;
+  client?: string;
+  location?: string;
+  startingValue?: string;
   lowestBid: number;
   type: "arena" | "sub";
   timeLeft: string;
-  status: "active" | "placed";
+  status: "active" | "placed" | "Completed" | "Closed" | "AWARDED" | "Live";
+  category?: string;
+  mode?: string;
   myBid?: number;
 }
 
@@ -202,8 +207,22 @@ export default function DashboardPage() {
   const [filterSubmittedOnly, setFilterSubmittedOnly] = useState(false);
   const [vaultOpen, setVaultOpen] = useState(false);
   const [reverseArenaBidOpen, setReverseArenaBidOpen] = useState(false);
+  const [selectedAuctionForBid, setSelectedAuctionForBid] = useState<ArenaAuctionItem | null>(null);
   const [reverseBidInput, setReverseBidInput] = useState("");
   const [sortByNearest, setSortByNearest] = useState(true);
+  const [terminalBidsData, setTerminalBidsData] = useState<any | null>(null);
+  const [isTerminalPolling, setIsTerminalPolling] = useState(false);
+  const [isSubmittingTerminalBid, setIsSubmittingTerminalBid] = useState(false);
+  const [terminalChartTab, setTerminalChartTab] = useState<"graph" | "depth" | "history">("graph");
+  const [hoveredChartPoint, setHoveredChartPoint] = useState<{
+    round: number;
+    amount: number;
+    bidder: string;
+    org?: string;
+    time: string;
+    x: number;
+    y: number;
+  } | null>(null);
 
   // Live Tenders Tab Filter & Search States
   const [liveSearchQuery, setLiveSearchQuery] = useState("");
@@ -429,145 +448,8 @@ export default function DashboardPage() {
     return list;
   }, [tenders, liveSearchQuery, liveFilterCategory, liveSortBy]);
 
-  // Mock state for Arena Auctions (supporting functional search filtering)
-  const [auctions, setAuctions] = useState<ArenaAuctionItem[]>([
-    {
-      id: "OSD/7734",
-      title: "Office Stationery Supply",
-      lowestBid: 12500,
-      type: "arena",
-      timeLeft: "03:45",
-      status: "active",
-    },
-    {
-      id: "RA-9012",
-      title: "Heavy Machinery",
-      lowestBid: 90012,
-      type: "sub",
-      timeLeft: "03 | 04:00 | 05",
-      status: "active",
-    },
-    {
-      id: "RA-8855",
-      title: "Steel Beam Procurement",
-      lowestBid: 34950,
-      type: "sub",
-      timeLeft: "08 | 05:24 | 05",
-      status: "active",
-    },
-  ]);
-
-  const liveAuctionData = [
-    {
-      id: "AUC/REV/2026/00412",
-      title: "Live Reverse Auction for Supply of 500 Enterprise Laptops",
-      tenderRef: "MeitY/IT/2026/8912",
-      type: "Reverse Procurement (L1 Price Drops)",
-      lowestBid: "₹2,15,00,000",
-      bidder: "Bidder #804",
-      rank: "Rank 2 (L2)",
-      decrement: "₹50,000",
-      time: "00:03:45",
-      settlement: "ERC-721 Work Order NFT",
-      settlementInfo: "Minted to L1 Winner on Close",
-      mode: "Reverse",
-    },
-    {
-      id: "AUC/FWD/2026/00189",
-      title: "Commercial Land Lease Rights & Scrap Equipment Auction",
-      issuingBody: "Industrial Development Corporation",
-      type: "Forward Asset Sale (H1 Price Rises)",
-      nftBadge: "ERC-721 Property Deed NFT #8901",
-      nftInfo: "IPFS Verified Title & Lease Metadata",
-      basePrice: "₹1.50 Crores",
-      highestBid: "₹2.10 Crores",
-      bidder: "Bidder #109",
-      increment: "₹1,000",
-      time: "01 Hours 12 Minutes",
-      mode: "Forward",
-    },
-  ];
-
-  const myAuctionBids = [
-    {
-      id: "AUC/REV/2026/00388",
-      title: "Live Reverse Auction for Highway Paving Contract",
-      price: "₹11,40,00,000",
-      status: "OUTBID — ACTION REQUIRED",
-      rank: "Your Rank: L2",
-      escrow: "10.0 Test-ETH Locked in Smart Contract Escrow",
-      hash: "0x4f8c21a990e72...",
-      settlement: "Work Order NFT #2026-NHAI",
-      type: "active",
-    },
-    {
-      id: "AUC/REV/2026/00412",
-      title: "Supply of 500 Enterprise Laptops",
-      price: "₹2,15,00,000",
-      status: "AUCTION WON",
-      rank: "L1 Winner",
-      escrow: "Settlement Ready",
-      hash: "0x91a73bc2219f...",
-      settlement: "Tender Contract NFT",
-      type: "won",
-    },
-  ];
-
-  const auctionCategories = [
-    {
-      title: "Reverse Procurement Auctions (e-RA)",
-      count: "180 Active Rounds",
-      description: "Settlement with milestone-based procurement contracts.",
-      settlement: "ERC-721 Work Order NFTs",
-      icon: "↘",
-    },
-    {
-      title: "Government Land, Real Estate & Mining Rights",
-      count: "42 Active Rounds",
-      description: "Legal lease deeds with geo-mapped metadata.",
-      settlement: "ERC-721 Property Deed NFTs",
-      icon: "⌂",
-    },
-    {
-      title: "Surplus Industrial Machinery & Heavy Equipment",
-      count: "95 Active Rounds",
-      description: "Digital ownership receipts and machinery history.",
-      settlement: "ERC-721 Asset Title NFTs",
-      icon: "⚙",
-    },
-    {
-      title: "Vehicles & Transport Fleet Liquidation",
-      count: "60 Active Rounds",
-      description: "Vehicle identification and digital registration.",
-      settlement: "ERC-721 Fleet Ownership NFTs",
-      icon: "▣",
-    },
-  ];
-
-  const auctionHistory = [
-    {
-      id: "AUC/REV/2025/00912",
-      title: "Reverse Auction for Medical ICU Monitor Supply",
-      status: "CLOSED — CONTRACT AWARDED (L1)",
-      winner: "Precision Health Tech Ltd (Bidder #402)",
-      price: "₹11.80 Crores",
-      saving: "Base Price: ₹12.30 Cr — Saved ₹50 Lakhs",
-      hash: "0x7b11a288c001...",
-      contract: "0x3a291f...89f",
-      type: "Reverse Auction — Work Order NFT",
-    },
-    {
-      id: "AUC/FWD/2025/00411",
-      title: "Commercial Plot Lease Allotment (Plot 44, GIDC)",
-      status: "CLOSED — ASSET TRANSFERRED (H1)",
-      winner: "Apex Logistics Corp (Bidder #103)",
-      price: "₹3.45 Crores",
-      saving: "Final Winning Price (H1)",
-      hash: "ERC-721 Property NFT #8901",
-      contract: "Transferred to 0x103...91a",
-      type: "Forward Auction — Property Deed NFT",
-    },
-  ];
+  // Dynamic state for Arena Auctions fetched from database
+  const [auctions, setAuctions] = useState<ArenaAuctionItem[]>([]);
 
   // Count active bids
   const activeBidsCount = tenders.filter(
@@ -714,20 +596,25 @@ export default function DashboardPage() {
 
   const normalizeAuctions = (raw: any[]): ArenaAuctionItem[] => {
     return raw.map((item) => {
-      let parsedLowest = 12500;
-      if (typeof item.lowestBid === "number") {
+      let parsedLowest = 0;
+      if (typeof item.lowestBid === "number" && !isNaN(item.lowestBid) && item.lowestBid > 0) {
         parsedLowest = item.lowestBid;
       } else if (item.startingValue) {
-        const numStr = item.startingValue.replace(/[^\d]/g, "");
-        parsedLowest = parseInt(numStr, 10) || 12500;
+        const numStr = String(item.startingValue).replace(/[^\d.]/g, "");
+        parsedLowest = parseFloat(numStr) || 0;
       }
       return {
         id: item.id,
         title: item.title,
+        client: item.client || item.dept || "Government Agency",
+        location: item.location || "India",
+        startingValue: item.startingValue || `₹${parsedLowest.toLocaleString()}`,
         lowestBid: parsedLowest,
-        type: item.type || "arena",
-        timeLeft: item.timeLeft || item.duration || "03:45",
-        status: item.status === "Live" ? "active" : item.status || "active",
+        type: item.type === "arena" ? "arena" : "sub",
+        timeLeft: item.duration || item.timeLeft || "03:45 mins",
+        status: item.status === "placed" ? "placed" : item.status === "Completed" ? "Completed" : item.status === "Closed" ? "Closed" : item.status === "AWARDED" ? "AWARDED" : "active",
+        category: item.category || "Consumables & Office Supplies",
+        mode: item.mode || "Reverse",
         myBid: item.myBid || undefined,
       };
     });
@@ -798,16 +685,34 @@ export default function DashboardPage() {
         }
       };
 
-      loadLiveTenders();
-
-      const savedAuctions = localStorage.getItem("user-auctions");
-      if (savedAuctions) {
+      // Load persistent live auctions from MySQL backend
+      const loadLiveAuctions = async () => {
         try {
-          setAuctions(normalizeAuctions(JSON.parse(savedAuctions)));
-        } catch (e) {
-          console.error(e);
+          const res = await fetch('/api/auctions');
+          const data = await res.json();
+          if (res.ok && Array.isArray(data.auctions)) {
+            setAuctions(normalizeAuctions(data.auctions));
+            localStorage.setItem("user-auctions", JSON.stringify(data.auctions));
+          } else {
+            const savedAuctions = localStorage.getItem("user-auctions");
+            if (savedAuctions) {
+              setAuctions(normalizeAuctions(JSON.parse(savedAuctions)));
+            }
+          }
+        } catch {
+          const savedAuctions = localStorage.getItem("user-auctions");
+          if (savedAuctions) {
+            try {
+              setAuctions(normalizeAuctions(JSON.parse(savedAuctions)));
+            } catch (e) {
+              console.error(e);
+            }
+          }
         }
-      }
+      };
+
+      loadLiveTenders();
+      loadLiveAuctions();
     }
   }, [router]);
 
@@ -988,35 +893,136 @@ export default function DashboardPage() {
     }
   };
 
-  const handleReverseArenaBid = (e: React.FormEvent) => {
+  // Live Terminal Bids Fetcher for Sharemarket Graph & Order Depth
+  const fetchTerminalBids = async (auctionId: string) => {
+    try {
+      setIsTerminalPolling(true);
+      const res = await fetch(`/api/auctions/bids?auctionId=${encodeURIComponent(auctionId)}`);
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setTerminalBidsData(data);
+        if (data.stats && typeof data.stats.currentLowestBid === 'number') {
+          setAuctions(prev =>
+            prev.map(a =>
+              a.id === auctionId
+                ? { ...a, lowestBid: data.stats.currentLowestBid }
+                : a
+            )
+          );
+        }
+      }
+    } catch (e) {
+      console.error('Error fetching terminal bids:', e);
+    } finally {
+      setIsTerminalPolling(false);
+    }
+  };
+
+  // Live polling effect when terminal modal is open (every 2.5 seconds)
+  useEffect(() => {
+    if (!reverseArenaBidOpen || !selectedAuctionForBid) {
+      setTerminalBidsData(null);
+      return;
+    }
+
+    fetchTerminalBids(selectedAuctionForBid.id);
+
+    const interval = setInterval(() => {
+      fetchTerminalBids(selectedAuctionForBid.id);
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [reverseArenaBidOpen, selectedAuctionForBid]);
+
+  // Quick Bid Increment Helper (Sharemarket Order Console - More Bid is Valued)
+  const applyQuickBidIncrement = (amountToAdd: number, isPercentage: boolean = false) => {
+    const target = selectedAuctionForBid || arenaAuctionMatch || auctions[0];
+    if (!target) return;
+    const currentHighest = terminalBidsData?.stats?.currentHighestBid ?? target.lowestBid;
+    let nextBid = 0;
+    if (isPercentage) {
+      nextBid = Math.ceil(currentHighest * (1 + amountToAdd / 100));
+    } else {
+      nextBid = currentHighest + amountToAdd;
+    }
+    setReverseBidInput(String(nextBid));
+  };
+
+  const handleReverseArenaBid = async (e: React.FormEvent) => {
     e.preventDefault();
     const bidVal = parseFloat(reverseBidInput);
-    if (isNaN(bidVal)) return;
+    if (isNaN(bidVal) || bidVal <= 0) {
+      alert("Please enter a valid bid amount.");
+      return;
+    }
 
-    const currentLowest =
-      auctions.find((a) => a.id === "OSD/7734")?.lowestBid || 12500;
+    const targetAuction = selectedAuctionForBid || arenaAuctionMatch || auctions[0];
+    if (!targetAuction) return;
 
-    if (bidVal >= currentLowest) {
+    const currentHighest = terminalBidsData?.stats?.currentHighestBid ?? targetAuction.lowestBid;
+
+    if (bidVal <= currentHighest) {
       alert(
-        `In a reverse auction, your bid must be LOWER than the current lowest bid of ₹${currentLowest.toLocaleString()}`,
+        `In this auction, your bid must be strictly HIGHER than the current leading bid of ₹${currentHighest.toLocaleString()}`,
       );
       return;
     }
 
-    const updated = auctions.map((a) =>
-      a.id === "OSD/7734"
-        ? { ...a, lowestBid: bidVal, status: "placed" as const, myBid: bidVal }
-        : a,
-    );
-    setAuctions(updated);
-    if (typeof window !== "undefined") {
-      localStorage.setItem("user-auctions", JSON.stringify(updated));
+    try {
+      setIsSubmittingTerminalBid(true);
+      const res = await fetch('/api/auctions/bids', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          auctionId: targetAuction.id,
+          bidAmount: bidVal,
+          bidderId: user?.id || `USR-${Math.random().toString(36).substring(2, 7).toUpperCase()}`,
+          bidderName: user?.fullName || 'Verified Enterprise Bidder',
+          bidderOrg: user?.orgName || 'Government Registered Contractor',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || 'Failed to submit bid.');
+        return;
+      }
+
+      // Update local auctions state and refresh terminal data immediately
+      const updated = auctions.map((a) =>
+        a.id === targetAuction.id
+          ? { ...a, lowestBid: bidVal, status: "placed" as const, myBid: bidVal }
+          : a,
+      );
+      setAuctions(updated);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("user-auctions", JSON.stringify(updated));
+      }
+
+      // Re-fetch latest bids for the terminal to update the graph instantly
+      await fetchTerminalBids(targetAuction.id);
+
+      alert(
+        `Bid successfully placed! You are now the H1 LEADING BIDDER for ${targetAuction.title} at ₹${bidVal.toLocaleString()}`,
+      );
+      setReverseBidInput("");
+    } catch (err) {
+      console.error('Bid error:', err);
+      // Local fallback
+      const updated = auctions.map((a) =>
+        a.id === targetAuction.id
+          ? { ...a, lowestBid: bidVal, status: "placed" as const, myBid: bidVal }
+          : a,
+      );
+      setAuctions(updated);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("user-auctions", JSON.stringify(updated));
+      }
+      alert(`Bid placed! New highest bid is now ₹${bidVal.toLocaleString()}`);
+      setReverseBidInput("");
+    } finally {
+      setIsSubmittingTerminalBid(false);
     }
-    alert(
-      `Bid placed! New Lowest bid in Arena is now ₹${bidVal.toLocaleString()}`,
-    );
-    setReverseArenaBidOpen(false);
-    setReverseBidInput("");
   };
 
   const handleSubNavClick = (
@@ -1139,16 +1145,18 @@ export default function DashboardPage() {
   const filteredAuctions = auctions.filter(
     (a) =>
       a.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      a.id.toLowerCase().includes(searchQuery.toLowerCase()),
+      a.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (a.client && a.client.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (a.location && a.location.toLowerCase().includes(searchQuery.toLowerCase())),
   );
 
-  // Split filtered auctions for rendering
-  const arenaAuctionMatch = filteredAuctions.find((a) => a.type === "arena");
-  const subAuctionsMatches = filteredAuctions.filter((a) => a.type === "sub");
+  // Split filtered auctions for rendering: first/featured arena vs all other active auctions
+  const arenaAuctionMatch = filteredAuctions.find((a) => a.type === "arena") || filteredAuctions[0];
+  const subAuctionsMatches = filteredAuctions.filter((a) => a.id !== arenaAuctionMatch?.id);
 
-  // Dynamic lowest bid computed from current state array for sync
+  // Dynamic lowest bid computed from current active arena auction
   const currentLowestBid =
-    auctions.find((a) => a.id === "OSD/7734")?.lowestBid || 12500;
+    arenaAuctionMatch?.lowestBid || 0;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-between font-sans text-left">
@@ -1170,6 +1178,7 @@ export default function DashboardPage() {
             <button
               onClick={() => {
                 setActiveTab("tender");
+                setActiveSubNav("dashboard");
                 setSearchQuery("");
                 setFilterSubmittedOnly(false);
               }}
@@ -1180,6 +1189,8 @@ export default function DashboardPage() {
             <button
               onClick={() => {
                 setActiveTab("auction");
+                setActiveSubNav("dashboard");
+                setAuctionSubNav("live");
                 setSearchQuery("");
               }}
               className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer ${activeTab === "auction" ? "bg-white text-[#1b4e7e] shadow-sm" : "text-white hover:bg-white/5"}`}
@@ -1623,67 +1634,68 @@ export default function DashboardPage() {
                 {/* RIGHT SIDEBAR */}
                 <div className="space-y-6 text-left">
                   {/* Management Tools */}
-                  <div className="bg-[#133c62] text-white rounded-xl shadow-md overflow-hidden p-6 border border-[#1b4e7e]">
-                    <h3 className="text-sm font-bold tracking-wider uppercase opacity-90 border-b border-white/10 pb-3 mb-4">
-                      Tender Management Tools
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 space-y-4">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-3 flex items-center gap-2">
+                      <svg className="w-4 h-4 text-[#1b4e7e]" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
+                      </svg>
+                      <span>Tender Management Tools</span>
                     </h3>
 
-                    <div className="space-y-4">
+                    <div className="space-y-2">
                       <button
                         onClick={() =>
                           setFilterSubmittedOnly(!filterSubmittedOnly)
                         }
-                        className="w-full flex items-center justify-between py-2 text-left group hover:opacity-80 transition-all cursor-pointer"
+                        className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-xl text-left transition-all cursor-pointer"
                       >
                         <div className="space-y-0.5">
-                          <span className="text-xs font-bold">
+                          <span className="text-xs font-bold text-slate-800">
                             My Active Bids
                           </span>
 
-                          <p className="text-[10px] text-white/50">
+                          <p className="text-[10px] text-slate-500">
                             {filterSubmittedOnly
                               ? "Showing submitted bids (Click to clear)"
                               : "Filter by applied bids"}
                           </p>
                         </div>
 
-                        <span className="text-white/40 text-lg">→</span>
+                        <span className="text-slate-400 font-bold text-sm">→</span>
                       </button>
-
-                      <div className="w-full h-px bg-white/10" />
 
                       <button
                         onClick={() => setVaultOpen(true)}
-                        className="w-full flex items-center justify-between py-2 text-left group hover:opacity-80 transition-all cursor-pointer"
+                        className="w-full flex items-center justify-between p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-xl text-left transition-all cursor-pointer"
                       >
                         <div className="space-y-0.5">
-                          <span className="text-xs font-bold">
+                          <span className="text-xs font-bold text-slate-800">
                             Document Vault Access
                           </span>
 
-                          <span className="text-[10px] text-white/50 block">
-                            (All Active)
+                          <span className="text-[10px] text-slate-500 block">
+                            Hardware / Cloud Security Records
                           </span>
                         </div>
 
-                        <span className="text-white/40 text-lg">→</span>
+                        <span className="text-slate-400 font-bold text-sm">→</span>
                       </button>
                     </div>
                   </div>
 
                   {/* Regional Recommended Tenders Sidebar */}
-                  <div className="bg-[#133c62] text-white rounded-xl shadow-md overflow-hidden p-5 border border-[#1b4e7e] space-y-4">
-                    <div className="border-b border-white/10 pb-3">
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-5 space-y-4">
+                    <div className="border-b border-slate-100 pb-3">
                       <div className="flex items-center gap-1.5">
-                        <svg className="w-3.5 h-3.5 text-sky-300 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 text-[#1b4e7e] shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
                           <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
                         </svg>
-                        <h3 className="text-xs font-bold tracking-wider uppercase opacity-95">
+                        <h3 className="text-xs font-black tracking-wider uppercase text-slate-800">
                           Regional Tender Matches
                         </h3>
                       </div>
-                      <p className="text-[10px] text-white/70 mt-1">
+                      <p className="text-[10px] text-slate-500 mt-1">
                         Prioritized by proximity to your operating hub ({userSourceCity})
                       </p>
                     </div>
@@ -1824,182 +1836,199 @@ export default function DashboardPage() {
                     )}
 
                     {auctionSubNav === "live" && (
-                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 text-left">
                         <div className="lg:col-span-2 space-y-6">
                           {arenaAuctionMatch ? (
-                            <div className="bg-[#133c62] text-white rounded-xl shadow-md overflow-hidden p-6 border border-[#1b4e7e]">
-                              <div className="flex justify-between items-start gap-4">
-                                <h3 className="font-extrabold text-sm md:text-base">
-                                  {arenaAuctionMatch.id} - {arenaAuctionMatch.title}
-                                </h3>
-
-                            <div className="flex gap-1">
-                              {["03", "04", "02", "05"].map((num, idx) => (
-                                <span
-                                  key={idx}
-                                  className="bg-slate-900/60 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded"
-                                >
-                                  {num}
+                            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4 hover:border-slate-300 transition-all">
+                              {/* Header Bar */}
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    Live Auction
+                                  </span>
+                                  <span className="font-mono text-slate-600 text-xs font-bold bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                                    {arenaAuctionMatch.id}
+                                  </span>
+                                </div>
+                                <span className="text-[11px] font-mono text-slate-600 flex items-center gap-1 font-bold">
+                                  <svg className="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                  </svg>
+                                  Time Left: {formatTime(timeLeftSeconds)}
                                 </span>
-                              ))}
-                            </div>
-                          </div>
+                              </div>
 
-                          <div className="grid grid-cols-2 gap-4 mt-4 mb-5">
-                            <div>
-                              <span className="text-[10px] text-white/50 block uppercase">
-                                Current Lowest Bid
-                              </span>
+                              {/* Title & Metadata */}
+                              <div>
+                                <h3 className="font-bold text-slate-900 text-base">
+                                  {arenaAuctionMatch.title}
+                                </h3>
+                                <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 mt-1">
+                                  {arenaAuctionMatch.client && (
+                                    <span>Agency: <strong className="text-slate-700">{arenaAuctionMatch.client}</strong></span>
+                                  )}
+                                  {arenaAuctionMatch.location && (
+                                    <span>• Location: <strong className="text-slate-700">{arenaAuctionMatch.location}</strong></span>
+                                  )}
+                                </div>
+                              </div>
 
-                              <span className="text-xl font-black">
-                                ₹ {arenaAuctionMatch.lowestBid.toLocaleString()}
-                              </span>
-                            </div>
+                              {/* Key Info Row */}
+                              <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                <div>
+                                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                                    Leading Highest Bid (H1)
+                                  </span>
+                                  <span className="text-lg font-black text-emerald-700 font-mono block mt-0.5">
+                                    ₹{arenaAuctionMatch.lowestBid.toLocaleString()}
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                                    Base Reserve Price
+                                  </span>
+                                  <span className="text-base font-bold text-slate-700 font-mono block mt-0.5">
+                                    {arenaAuctionMatch.startingValue || `₹${arenaAuctionMatch.lowestBid.toLocaleString()}`}
+                                  </span>
+                                </div>
+                              </div>
 
-                            <div className="text-right">
-                              <span className="text-[10px] text-white/50 block uppercase">
-                                Time Left
-                              </span>
-
-                              <span className="text-base font-bold font-mono">
-                                {formatTime(timeLeftSeconds)}
-                              </span>
-                            </div>
-                          </div>
-
-                          <div className="w-full h-20 mb-5">
-                            <svg
-                              className="w-full h-full"
-                              viewBox="0 0 340 100"
-                              preserveAspectRatio="none"
-                            >
-                              <path
-                                d="M10,80 Q30,65 50,50 T90,90 T130,60 T170,80 T210,40 T250,85 T290,50 T330,60"
-                                fill="none"
-                                stroke="#f0803c"
-                                strokeWidth="2.5"
-                              />
-                            </svg>
-                          </div>
-
-                          <button
-                            onClick={() => setReverseArenaBidOpen(true)}
-                            className="w-full py-3 bg-[#e07a5f] hover:bg-[#cf6b50] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
-                          >
-                            Place Lower Bid Now
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400">
-                          No auction found.
-                        </div>
-                      )}
-
-                      {/* Small Auctions */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {subAuctionsMatches.map((item) => (
-                          <div
-                            key={item.id}
-                            className="bg-[#133c62] text-white rounded-xl shadow-md p-5 border border-[#1b4e7e]"
-                          >
-                            <div className="flex justify-between gap-3">
-                              <h4 className="font-bold text-sm">{item.title}</h4>
-
-                              <span className="bg-amber-500/20 text-amber-300 text-[8px] font-bold px-2 py-0.5 rounded h-fit">
-                                ACTIVE
-                              </span>
-                            </div>
-
-                            <div className="mt-5">
-                              <p className="text-[10px] text-white/50 uppercase">
-                                Current Lowest Bid
-                              </p>
-
-                              <p className="text-lg font-extrabold mt-1">
-                                ₹{item.lowestBid.toLocaleString()}
-                              </p>
-                            </div>
-
-                            <div className="flex justify-between items-center mt-5 pt-3 border-t border-white/10">
-                              <span className="text-[10px] font-mono">
-                                {item.timeLeft}
-                              </span>
-
+                              {/* Clean Enter Button */}
                               <button
-                                onClick={() =>
-                                  alert(
-                                    `Placing bid for ${item.title} (${item.id})`,
-                                  )
-                                }
-                                className="bg-white/10 hover:bg-white/20 border border-white/20 py-1.5 px-4 rounded text-[9px] font-bold"
+                                onClick={() => {
+                                  setSelectedAuctionForBid(arenaAuctionMatch);
+                                  setReverseBidInput("");
+                                  setReverseArenaBidOpen(true);
+                                }}
+                                className="w-full py-2.5 bg-[#1b4e7e] hover:bg-[#133c62] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-xs flex items-center justify-center gap-2"
                               >
-                                Bid Now
+                                <span>Enter Live Auction Arena &amp; Trading Terminal</span>
+                                <span>→</span>
                               </button>
                             </div>
+                          ) : (
+                            <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center text-slate-400">
+                              No active auction sessions currently ongoing. Check back shortly.
+                            </div>
+                          )}
+
+                          {/* Secondary Live Auctions Grid */}
+                          {subAuctionsMatches.length > 0 && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                              {subAuctionsMatches.map((item) => (
+                                <div
+                                  key={item.id}
+                                  className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col justify-between hover:shadow-md transition-all space-y-4 text-left"
+                                >
+                                  <div className="space-y-2">
+                                    <div className="flex justify-between items-start gap-2">
+                                      <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200">
+                                        {item.id}
+                                      </span>
+                                      <span className="bg-emerald-50 text-emerald-700 text-[9px] font-extrabold px-2 py-0.5 rounded border border-emerald-100 flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                        LIVE
+                                      </span>
+                                    </div>
+
+                                    <h4 className="font-bold text-sm text-slate-900 line-clamp-1">
+                                      {item.title}
+                                    </h4>
+
+                                    {item.client && (
+                                      <p className="text-[11px] text-slate-500 truncate">
+                                        {item.client} • {item.location}
+                                      </p>
+                                    )}
+
+                                    <div className="pt-2">
+                                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                                        Leading Highest Bid (H1)
+                                      </span>
+                                      <div className="text-lg font-black text-emerald-700 font-mono mt-0.5">
+                                        ₹{item.lowestBid.toLocaleString()}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                                    <span className="text-[11px] font-mono text-slate-500 font-bold flex items-center gap-1">
+                                      <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                                      </svg>
+                                      {item.timeLeft || "Active"}
+                                    </span>
+
+                                    <button
+                                      onClick={() => {
+                                        setSelectedAuctionForBid(item);
+                                        setReverseBidInput("");
+                                        setReverseArenaBidOpen(true);
+                                      }}
+                                      className="bg-[#1b4e7e] hover:bg-[#133c62] text-white py-1.5 px-3.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+                                    >
+                                      <span>Enter Arena</span>
+                                      <span>→</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Right Sidebar: Activity & Market Statistics */}
+                        <div className="space-y-6">
+                          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-5 text-slate-800">
+                            <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 border-b border-slate-100 pb-3 flex items-center gap-2">
+                              <svg className="w-4 h-4 text-[#1b4e7e]" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
+                              </svg>
+                              <span>My Auction Activity</span>
+                            </h3>
+
+                            <div className="space-y-3">
+                              <div className="flex justify-between items-center text-xs font-bold text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <span>My Submitted Live Bids</span>
+                                <span className="font-mono bg-white px-2 py-0.5 rounded border border-slate-200 text-[#1b4e7e]">
+                                  {auctions.filter((a) => a.status === "placed" || a.myBid).length} Active
+                                </span>
+                              </div>
+
+                              <div className="flex justify-between items-center text-xs font-bold text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <span>Catalog Auction Total</span>
+                                <span className="font-mono bg-white px-2 py-0.5 rounded border border-slate-200 text-slate-600">
+                                  {auctions.length} Live
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="border-t border-slate-100 pt-4 space-y-2">
+                              <div className="flex justify-between items-center text-xs">
+                                <span className="font-bold text-slate-600">Market Participation Rate</span>
+                                <span className="font-bold text-emerald-600 font-mono">+18.4% YoY</span>
+                              </div>
+                              <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden flex">
+                                <div className="bg-[#1b4e7e] h-full w-[65%]" />
+                                <div className="bg-emerald-500 h-full w-[35%]" />
+                              </div>
+                              <span className="text-[10px] text-slate-400 block text-right font-mono">
+                                Real-Time Liquidity Index
+                              </span>
+                            </div>
+
+                            <div className="border-t border-slate-100 pt-3 flex items-center justify-between text-[10px] text-slate-400">
+                              <span className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+                                Live Network Sync
+                              </span>
+                              <span className="font-mono">Auto-refreshed</span>
+                            </div>
                           </div>
-                        ))}
+                        </div>
                       </div>
-                    </div>
-
-                    {/* Auction Activity */}
-                    <div className="space-y-6">
-                      <div className="bg-[#133c62] text-white rounded-xl shadow-md p-6 border border-[#1b4e7e] space-y-5">
-                        <h3 className="text-sm font-bold uppercase border-b border-white/10 pb-3">
-                          My Auction Activity
-                        </h3>
-
-                        <div className="flex justify-between text-xs font-bold">
-                          <span>Live Bids (2)</span>
-
-                          <span>→</span>
-                        </div>
-
-                        <div className="w-full h-px bg-white/10" />
-
-                        <div>
-                          <h4 className="text-xs font-bold mb-3">
-                            Auction Watchlist
-                          </h4>
-
-                          <div className="flex justify-between text-[10px] font-bold">
-                            <span className="opacity-60">BID</span>
-
-                            <span className="text-emerald-400">+2.78%</span>
-                          </div>
-
-                          <div className="relative w-full h-1.5 mt-3 rounded-full overflow-hidden flex">
-                            <div className="w-1/2 bg-rose-500" />
-
-                            <div className="w-1/2 bg-emerald-500" />
-
-                            <span className="absolute left-[68%] top-1/2 -translate-y-1/2 w-3 h-3 bg-yellow-300 border-2 border-[#133c62] rounded-full" />
-                          </div>
-                        </div>
-
-                        <div className="w-full h-px bg-white/10" />
-
-                        <div>
-                          <h4 className="text-xs font-bold mb-3">
-                            Market Sentiment
-                          </h4>
-
-                          <div className="flex justify-between text-[10px]">
-                            <span className="text-emerald-400">Capital</span>
-
-                            <span className="text-emerald-400">▲ 6.89%</span>
-                          </div>
-                        </div>
-
-                        <div className="w-full h-px bg-white/10" />
-
-                        <div className="flex items-center gap-2 text-[9px] text-white/40">
-                          <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping" />
-                          Updating...
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                    )}
 
                 {/* MY BIDS & NFT VAULT PANEL */}
                 {auctionSubNav === "my-bids" && (
@@ -2014,124 +2043,93 @@ export default function DashboardPage() {
                         </p>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4 text-left">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-mono text-[#1b4e7e] font-bold">
-                              CERT-7734-98
-                            </span>
-                            <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[9px] font-extrabold border border-emerald-100">
-                              SECURED
-                            </span>
-                          </div>
-                          <div>
-                            <h3 className="text-sm font-bold text-slate-800">
-                              Office Stationery Supply Certificate
-                            </h3>
-                            <p className="text-[10px] text-slate-400 mt-0.5">
-                              Associated with Bid: OSD/7734
-                            </p>
-                          </div>
-                          <div className="bg-slate-50 rounded-lg p-3 space-y-2 text-[11px]">
-                            <div className="flex justify-between">
-                              <span className="text-slate-400">Token Standard:</span>
-                              <span className="font-semibold text-slate-700">ERC-1155</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-slate-400">Smart Contract:</span>
-                              <span className="font-mono text-[#1b4e7e] truncate max-w-[120px]">
-                                0x3a4fbc8c1992de0018a1bc
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-slate-400">Hash Signature:</span>
-                              <span className="font-mono text-slate-700 truncate max-w-[120px]">
-                                8f9b7c2d1e0a4fbc8c1992d
-                              </span>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => setAuctionSubNav("ledger")}
-                            className="w-full py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-600 font-bold text-[11px] transition-colors cursor-pointer text-center"
-                          >
-                            Inspect Audit Trail
-                          </button>
+                      {auctions.filter((a) => a.status === "placed" || a.myBid).length > 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          {auctions
+                            .filter((a) => a.status === "placed" || a.myBid)
+                            .map((item) => (
+                              <div key={item.id} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4 text-left">
+                                <div className="flex justify-between items-center">
+                                  <span className="text-[10px] font-mono text-[#1b4e7e] font-bold">
+                                    CERT-{item.id.replace(/[^\w]/g, "")}-VAULT
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[9px] font-extrabold border border-emerald-100">
+                                    SECURED
+                                  </span>
+                                </div>
+                                <div>
+                                  <h3 className="text-sm font-bold text-slate-800">
+                                    {item.title} Certificate
+                                  </h3>
+                                  <p className="text-[10px] text-slate-400 mt-0.5">
+                                    Associated with Bid: {item.id}
+                                  </p>
+                                </div>
+                                <div className="bg-slate-50 rounded-lg p-3 space-y-2 text-[11px]">
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-400">Token Standard:</span>
+                                    <span className="font-semibold text-slate-700">ERC-1155</span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-400">My Placed Lowest Bid:</span>
+                                    <span className="font-bold text-emerald-700">
+                                      ₹{(item.myBid || item.lowestBid).toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between">
+                                    <span className="text-slate-400">Agency / Client:</span>
+                                    <span className="font-semibold text-slate-700 truncate max-w-[130px]">
+                                      {item.client || "Directorate"}
+                                    </span>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => setAuctionSubNav("ledger")}
+                                  className="w-full py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-600 font-bold text-[11px] transition-colors cursor-pointer text-center"
+                                >
+                                  Inspect Audit Trail
+                                </button>
+                              </div>
+                            ))}
                         </div>
-
-                        <div className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm space-y-4 text-left">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-mono text-[#1b4e7e] font-bold">
-                              CERT-9012-14
-                            </span>
-                            <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[9px] font-extrabold border border-emerald-100">
-                              SECURED
-                            </span>
-                          </div>
-                          <div>
-                            <h3 className="text-sm font-bold text-slate-800">
-                              Heavy Machinery Tender Certificate
-                            </h3>
-                            <p className="text-[10px] text-slate-400 mt-0.5">
-                              Associated with Bid: RA-9012
-                            </p>
-                          </div>
-                          <div className="bg-slate-50 rounded-lg p-3 space-y-2 text-[11px]">
-                            <div className="flex justify-between">
-                              <span className="text-slate-400">Token Standard:</span>
-                              <span className="font-semibold text-slate-700">ERC-1155</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-slate-400">Smart Contract:</span>
-                              <span className="font-mono text-[#1b4e7e] truncate max-w-[120px]">
-                                0x91b2fe48ba9910a3ee77
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-slate-400">Hash Signature:</span>
-                              <span className="font-mono text-slate-700 truncate max-w-[120px]">
-                                2a9910a3ed9c4483bd53e69
-                              </span>
-                            </div>
-                          </div>
-                          <button
-                            onClick={() => setAuctionSubNav("ledger")}
-                            className="w-full py-2 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-slate-600 font-bold text-[11px] transition-colors cursor-pointer text-center"
-                          >
-                            Inspect Audit Trail
-                          </button>
+                      ) : (
+                        <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400 space-y-2">
+                          <p className="text-sm font-semibold">No tokenized bid certificates found in vault.</p>
+                          <p className="text-xs text-slate-400">Place a bid in the Live Reverse Auctions Arena to generate and secure an immutable NFT certificate.</p>
                         </div>
-                      </div>
+                      )}
                     </div>
 
                     <div className="space-y-6">
                       <div className="bg-[#133c62] text-white rounded-xl shadow-md p-6 border border-[#1b4e7e] space-y-4">
-                        <h3 className="text-sm font-bold uppercase border-b border-white/10 pb-3">
-                          My Placed Bids
+                        <h3 className="text-sm font-bold uppercase border-b border-white/10 pb-3 flex justify-between items-center">
+                          <span>My Placed Bids</span>
+                          <span className="bg-white/10 text-white text-[10px] px-2 py-0.5 rounded-full font-mono">
+                            {auctions.filter((a) => a.status === "placed" || a.myBid).length}
+                          </span>
                         </h3>
                         <div className="space-y-3">
-                          <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
-                            <span className="text-[9px] font-bold text-amber-400 block uppercase">
-                              OSD/7734 - Stationery
-                            </span>
-                            <span className="text-sm font-black block mt-0.5">
-                              ₹ {currentLowestBid.toLocaleString()}
-                            </span>
-                            <span className="text-[9px] text-white/50 block mt-1">
-                              Status: Leading Bid (Lowest)
-                            </span>
-                          </div>
-
-                          <div className="p-3 bg-white/5 border border-white/10 rounded-lg">
-                            <span className="text-[9px] font-bold text-amber-400 block uppercase">
-                              RA-9012 - Heavy Machinery
-                            </span>
-                            <span className="text-sm font-black block mt-0.5">
-                              ₹ 90,012
-                            </span>
-                            <span className="text-[9px] text-white/50 block mt-1">
-                              Status: Position Standard
-                            </span>
-                          </div>
+                          {auctions.filter((a) => a.status === "placed" || a.myBid).length > 0 ? (
+                            auctions
+                              .filter((a) => a.status === "placed" || a.myBid)
+                              .map((item) => (
+                                <div key={item.id} className="p-3 bg-white/5 border border-white/10 rounded-lg space-y-1">
+                                  <span className="text-[9px] font-bold text-amber-400 block uppercase">
+                                    {item.id} - {item.title}
+                                  </span>
+                                  <span className="text-sm font-black block text-white">
+                                    ₹ {(item.myBid || item.lowestBid).toLocaleString()}
+                                  </span>
+                                  <span className="text-[9px] text-emerald-400 block">
+                                    Status: Active Lowest Leading Bid
+                                  </span>
+                                </div>
+                              ))
+                          ) : (
+                            <p className="text-xs text-white/50 py-3 text-center italic">
+                              No active bids placed yet.
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -2155,7 +2153,6 @@ export default function DashboardPage() {
                         {
                           name: "Construction & Infrastructure",
                           desc: "Road expansion, bridge building, solar installations",
-                          count: 3,
                           icon: (
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                           )
@@ -2163,7 +2160,6 @@ export default function DashboardPage() {
                         {
                           name: "Medical Equipment & Biotech",
                           desc: "Biomedical monitors, diagnostic setups, oxygen lines",
-                          count: 2,
                           icon: (
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
                           )
@@ -2171,7 +2167,6 @@ export default function DashboardPage() {
                         {
                           name: "Enterprise IT & Computing",
                           desc: "Fibre lines, server racks, cloud migration suites",
-                          count: 4,
                           icon: (
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                           )
@@ -2179,7 +2174,6 @@ export default function DashboardPage() {
                         {
                           name: "Consumables & Office Supplies",
                           desc: "Stationery packages, logistics, furniture updates",
-                          count: 1,
                           icon: (
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                           )
@@ -2187,38 +2181,44 @@ export default function DashboardPage() {
                         {
                           name: "Heavy Machinery & Fleet",
                           desc: "Road rollers, excavators, high-capacity loaders",
-                          count: 2,
                           icon: (
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                           )
                         }
-                      ].map((cat, idx) => (
-                        <div key={idx} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
-                          <div className="space-y-4">
-                            <div className="w-10 h-10 bg-slate-50 border border-slate-100 rounded-lg flex items-center justify-center text-[#1b4e7e]">
-                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                {cat.icon}
-                              </svg>
+                      ].map((cat, idx) => {
+                        const dynamicCount = auctions.filter((a) =>
+                          (a.category && a.category.toLowerCase().includes(cat.name.toLowerCase())) ||
+                          a.title.toLowerCase().includes(cat.name.split(" ")[0].toLowerCase())
+                        ).length;
+
+                        return (
+                          <div key={idx} className="bg-white border border-slate-200 rounded-xl p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                            <div className="space-y-4">
+                              <div className="w-10 h-10 bg-slate-50 border border-slate-100 rounded-lg flex items-center justify-center text-[#1b4e7e]">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  {cat.icon}
+                                </svg>
+                              </div>
+                              <div>
+                                <h3 className="text-sm font-bold text-slate-800">{cat.name}</h3>
+                                <p className="text-xs text-slate-400 mt-1 leading-relaxed">{cat.desc}</p>
+                              </div>
                             </div>
-                            <div>
-                              <h3 className="text-sm font-bold text-slate-800">{cat.name}</h3>
-                              <p className="text-xs text-slate-400 mt-1 leading-relaxed">{cat.desc}</p>
+                            <div className="mt-5 pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
+                              <span className="text-[#1b4e7e] font-bold">{dynamicCount} {dynamicCount === 1 ? 'Auction' : 'Auctions'}</span>
+                              <button
+                                onClick={() => {
+                                  setAuctionSubNav("live");
+                                  setSearchQuery(cat.name.split(" ")[0]);
+                                }}
+                                className="px-3 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded text-slate-600 font-bold text-[10px] cursor-pointer"
+                              >
+                                Explore
+                              </button>
                             </div>
                           </div>
-                          <div className="mt-5 pt-3 border-t border-slate-100 flex justify-between items-center text-xs">
-                            <span className="text-[#1b4e7e] font-bold">{cat.count} Auctions</span>
-                            <button
-                              onClick={() => {
-                                setAuctionSubNav("live");
-                                setSearchQuery(cat.name.split(" ")[0]);
-                              }}
-                              className="px-3 py-1 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded text-slate-600 font-bold text-[10px] cursor-pointer"
-                            >
-                              Explore
-                            </button>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -2235,68 +2235,47 @@ export default function DashboardPage() {
                       </p>
                     </div>
 
-                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                      <div className="overflow-x-auto">
-                        <table className="w-full text-xs md:text-sm text-left text-slate-700">
-                          <thead className="bg-slate-50 text-[10px] text-slate-400 uppercase tracking-wider font-extrabold border-b border-slate-200">
-                            <tr>
-                              <th className="px-6 py-4">Auction ID</th>
-                              <th className="px-6 py-4">Title</th>
-                              <th className="px-6 py-4">Client</th>
-                              <th className="px-6 py-4">Starting Value</th>
-                              <th className="px-6 py-4">Concluded Lowest Bid</th>
-                              <th className="px-6 py-4">Savings</th>
-                              <th className="px-6 py-4">Status</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {[
-                              {
-                                id: "NIC/0052",
-                                title: "Enterprise Cloud Suite",
-                                client: "Ministry of IT",
-                                start: "₹45,00,000",
-                                end: "₹38,20,000",
-                                savings: "15.1%",
-                                status: "Completed"
-                              },
-                              {
-                                id: "MCD/8821",
-                                title: "Waste Management Systems",
-                                client: "MCD Delhi",
-                                start: "₹25,00,000",
-                                end: "₹21,50,000",
-                                savings: "14.0%",
-                                status: "Completed"
-                              },
-                              {
-                                id: "NHAI/9010",
-                                title: "Toll Plaza Automations",
-                                client: "NHAI",
-                                start: "₹80,00,000",
-                                end: "₹74,30,000",
-                                savings: "7.1%",
-                                status: "Completed"
-                              }
-                            ].map((row, idx) => (
-                              <tr key={idx} className="hover:bg-slate-50/50">
-                                <td className="px-6 py-4 font-mono font-bold text-slate-900">{row.id}</td>
-                                <td className="px-6 py-4 font-semibold text-slate-800">{row.title}</td>
-                                <td className="px-6 py-4 text-slate-500">{row.client}</td>
-                                <td className="px-6 py-4 font-mono text-slate-600">{row.start}</td>
-                                <td className="px-6 py-4 font-mono font-bold text-[#1b4e7e]">{row.end}</td>
-                                <td className="px-6 py-4 font-bold text-emerald-600">{row.savings}</td>
-                                <td className="px-6 py-4">
-                                  <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-bold">
-                                    {row.status}
-                                  </span>
-                                </td>
+                    {auctions.filter((a) => a.status === "Completed" || a.status === "Closed" || a.status === "AWARDED").length > 0 ? (
+                      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs md:text-sm text-left text-slate-700">
+                            <thead className="bg-slate-50 text-[10px] text-slate-400 uppercase tracking-wider font-extrabold border-b border-slate-200">
+                              <tr>
+                                <th className="px-6 py-4">Auction ID</th>
+                                <th className="px-6 py-4">Title</th>
+                                <th className="px-6 py-4">Client</th>
+                                <th className="px-6 py-4">Starting Value</th>
+                                <th className="px-6 py-4">Concluded Lowest Bid</th>
+                                <th className="px-6 py-4">Status</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                              {auctions
+                                .filter((a) => a.status === "Completed" || a.status === "Closed" || a.status === "AWARDED")
+                                .map((row) => (
+                                  <tr key={row.id} className="hover:bg-slate-50/50">
+                                    <td className="px-6 py-4 font-mono font-bold text-slate-900">{row.id}</td>
+                                    <td className="px-6 py-4 font-semibold text-slate-800">{row.title}</td>
+                                    <td className="px-6 py-4 text-slate-500">{row.client || "Directorate"}</td>
+                                    <td className="px-6 py-4 font-mono text-slate-600">{row.startingValue || `₹${row.lowestBid.toLocaleString()}`}</td>
+                                    <td className="px-6 py-4 font-mono font-bold text-[#1b4e7e]">₹{row.lowestBid.toLocaleString()}</td>
+                                    <td className="px-6 py-4">
+                                      <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-100">
+                                        {row.status}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400 space-y-2">
+                        <p className="text-sm font-semibold">No past concluded auctions found.</p>
+                        <p className="text-xs text-slate-400">Completed reverse auctions will appear here once their bidding cycles finish and contracts are settled.</p>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -2322,7 +2301,7 @@ export default function DashboardPage() {
                         {[
                           {
                             event: "Bid Certificate Hash Signed",
-                            desc: "Cryptographic confirmation hash matching Stationery Bid (OSD/7734) committed to distributed state ledger.",
+                            desc: "Cryptographic confirmation hash matching verified reverse auction bid committed to distributed state ledger.",
                             tx: "0x7f48bce39a48586e797e433ab948586e",
                             block: "#20914820",
                             time: "10 mins ago",
@@ -3115,72 +3094,636 @@ export default function DashboardPage() {
         )}
       </main>
 
-      {/* 3. Modal Forms overlay popup */}
-
-      {/* Reverse Auction Arena Modal */}
+      {/* Reverse Auction Arena Live Trading Terminal & Sharemarket Graph Modal */}
       {reverseArenaBidOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 max-w-sm w-full p-6 text-left space-y-4">
-            <div>
-              <span className="text-[9px] font-bold bg-[#e07a5f] text-white px-2 py-0.5 rounded">
-                REVERSE ARENA BID
-              </span>
-              <h3 className="text-base font-bold text-slate-800 mt-2">
-                {auctions.find((a) => a.id === "OSD/7734")?.id} -{" "}
-                {auctions.find((a) => a.id === "OSD/7734")?.title}
-              </h3>
-            </div>
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md transition-opacity animate-in fade-in duration-200"
+          onClick={() => setReverseArenaBidOpen(false)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-4xl w-full max-h-[92vh] overflow-hidden flex flex-col text-left"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {(() => {
+              const currentAuction = selectedAuctionForBid || arenaAuctionMatch || auctions[0];
+              if (!currentAuction) return null;
 
-            <div className="p-3 bg-slate-50 rounded-lg text-xs text-slate-600 border border-slate-100">
-              <p>
-                <strong>Current Lowest Bidded Amount:</strong>
-                <br />
-                <span className="text-sm font-bold text-slate-800">
-                  ₹{" "}
-                  {(
-                    auctions.find((a) => a.id === "OSD/7734")?.lowestBid ||
-                    12500
-                  ).toLocaleString()}
-                </span>
-              </p>
-            </div>
+              const rawStart = currentAuction.startingValue || "0";
+              const startNum = parseFloat(String(rawStart).replace(/[^\d.]/g, "")) || currentAuction.lowestBid || 100000;
+              const currentHighest = terminalBidsData?.stats?.currentHighestBid ?? currentAuction.lowestBid;
+              const priceGrowth = currentHighest > startNum ? currentHighest - startNum : 0;
+              const percentageGrowth = startNum > 0 && priceGrowth > 0 ? ((priceGrowth / startNum) * 100).toFixed(1) + "%" : "0.0%";
 
-            <form onSubmit={handleReverseArenaBid} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-widest mb-1.5">
-                  Enter Lower Bid Amount (₹)
-                </label>
-                <div className="relative rounded-md shadow-sm">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 font-bold text-xs">
-                    ₹
+              const rawBidsList = terminalBidsData?.bids || [];
+              const chronologicalBids = rawBidsList
+                .slice()
+                .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+              // Construct Ascending Sharemarket Graph Points
+              const chartPoints = [
+                {
+                  round: 0,
+                  amount: startNum,
+                  bidder: "Opening Base Reserve",
+                  org: "Base Starting Price",
+                  time: "Round Open",
+                  hash: "0xGenesisReserve",
+                },
+                ...chronologicalBids.map((b: any, idx: number) => ({
+                  round: idx + 1,
+                  amount: Number(b.bidAmount),
+                  bidder: b.bidderName,
+                  org: b.bidderOrg,
+                  time: new Date(b.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }),
+                  hash: b.bidHash || "0xVerifiedHash",
+                })),
+              ];
+
+              const allAmounts = chartPoints.map((p) => p.amount);
+              const maxAmount = Math.max(...allAmounts, startNum);
+              const minAmount = Math.min(...allAmounts);
+              const priceSpan = maxAmount - minAmount || startNum * 0.1 || 1;
+
+              const graphWidth = 640;
+              const graphHeight = 160;
+              const padX = 45;
+              const padY = 20;
+              const plotWidth = graphWidth - padX * 2;
+              const plotHeight = graphHeight - padY * 2;
+
+              // Ascending graph: lower prices near bottom Y (high Y), higher prices near top Y (low Y)
+              const svgPoints = chartPoints.map((pt, i) => {
+                const x = chartPoints.length === 1 ? graphWidth / 2 : padX + (i / (chartPoints.length - 1)) * plotWidth;
+                const y = padY + ((maxAmount - pt.amount) / priceSpan) * plotHeight;
+                return { ...pt, x, y };
+              });
+
+              const linePath =
+                svgPoints.length === 1
+                  ? `M ${padX} ${svgPoints[0].y} L ${graphWidth - padX} ${svgPoints[0].y}`
+                  : svgPoints.reduce((acc, pt, idx) => {
+                      if (idx === 0) return `M ${pt.x} ${pt.y}`;
+                      const prev = svgPoints[idx - 1];
+                      const cx = (prev.x + pt.x) / 2;
+                      return `${acc} C ${cx} ${prev.y}, ${cx} ${pt.y}, ${pt.x} ${pt.y}`;
+                    }, "");
+
+              const areaPath =
+                svgPoints.length === 1
+                  ? `M ${padX} ${svgPoints[0].y} L ${graphWidth - padX} ${svgPoints[0].y} L ${graphWidth - padX} ${graphHeight - 5} L ${padX} ${graphHeight - 5} Z`
+                  : `${linePath} L ${svgPoints[svgPoints.length - 1].x} ${graphHeight - 5} L ${svgPoints[0].x} ${graphHeight - 5} Z`;
+
+              const isUserH1Leader =
+                terminalBidsData?.leaderboard &&
+                terminalBidsData.leaderboard.length > 0 &&
+                (terminalBidsData.leaderboard[0].bidderName === user?.fullName ||
+                  terminalBidsData.leaderboard[0].bidderOrg === user?.orgName);
+
+              return (
+                <>
+                  {/* Top Header Banner */}
+                  <div className="bg-[#1b4e7e] text-white p-5 sm:p-6 relative flex justify-between items-start">
+                    <div className="space-y-1.5 pr-6">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="bg-amber-400 text-slate-900 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full">
+                          AUCTION LIVE TERMINAL
+                        </span>
+                        <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1.5 animate-pulse">
+                          <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span>
+                          LIVE SOCKET FEED
+                        </span>
+                        <span className="text-white/60 text-[11px] font-mono">
+                          Auto-sync (2.5s)
+                        </span>
+                      </div>
+
+                      <h2 className="text-lg md:text-xl font-black tracking-tight mt-1">
+                        {currentAuction.title}
+                      </h2>
+                      <div className="flex flex-wrap items-center gap-4 text-xs text-white/80">
+                        <span className="font-mono bg-white/10 px-2 py-0.5 rounded">ID: {currentAuction.id}</span>
+                        {currentAuction.client && <span>Agency: <strong className="text-white">{currentAuction.client}</strong></span>}
+                        {currentAuction.location && <span>Location: <strong className="text-white">{currentAuction.location}</strong></span>}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => fetchTerminalBids(currentAuction.id)}
+                        title="Force Refresh"
+                        className="p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <svg className={`w-4 h-4 ${isTerminalPolling ? "animate-spin" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
+                        <span className="hidden sm:inline">Refresh</span>
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setReverseArenaBidOpen(false)}
+                        className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-                  <input
-                    type="number"
-                    required
-                    value={reverseBidInput}
-                    onChange={(e) => setReverseBidInput(e.target.value)}
-                    className="w-full pl-7 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-slate-800"
-                    placeholder={`Must be below ₹${(auctions.find((a) => a.id === "OSD/7734")?.lowestBid || 12500).toLocaleString()}`}
-                  />
-                </div>
-              </div>
 
-              <div className="flex gap-2.5 pt-2 justify-end">
-                <button
-                  type="button"
-                  onClick={() => setReverseArenaBidOpen(false)}
-                  className="px-4 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 text-xs font-bold transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2 bg-[#e07a5f] hover:bg-[#cf6b50] text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-sm"
-                >
-                  Place Lower Bid
-                </button>
-              </div>
-            </form>
+                  {/* Scrollable Content Body */}
+                  <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1 bg-slate-50/50">
+                    
+                    {/* 4 Stat Overview Cards */}
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
+                        <div className="flex items-center justify-between text-slate-400">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider">Buyers Entered</span>
+                          <svg className="w-4 h-4 text-[#1b4e7e]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                          </svg>
+                        </div>
+                        <div className="text-xl font-black text-slate-800 mt-1">
+                          {terminalBidsData?.stats?.distinctBidders || 0}
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-medium block">
+                          {chartPoints.length - 1} total bid rounds
+                        </span>
+                      </div>
+
+                      <div className="bg-white border border-emerald-200 rounded-xl p-3.5 shadow-2xs">
+                        <div className="flex items-center justify-between text-emerald-600">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider">Leading Bid (H1)</span>
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                        </div>
+                        <div className="text-xl font-black text-emerald-700 mt-1">
+                          ₹{currentHighest.toLocaleString()}
+                        </div>
+                        <span className="text-[10px] text-emerald-800 font-bold block truncate">
+                          {terminalBidsData?.stats?.leadingBidder ? `👑 Leader: ${terminalBidsData.stats.leadingBidder.bidderName}` : "Base Starting Price"}
+                        </span>
+                      </div>
+
+                      <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Base Reserve Price</span>
+                        <div className="text-xl font-black text-slate-700 mt-1">
+                          ₹{startNum.toLocaleString()}
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-medium block">
+                          Floor Threshold
+                        </span>
+                      </div>
+
+                      <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs">
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">Total Price Growth</span>
+                        <div className="text-xl font-black text-emerald-600 mt-1 flex items-center gap-1">
+                          <span>+{percentageGrowth}</span>
+                          <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
+                          </svg>
+                        </div>
+                        <span className="text-[10px] text-slate-500 font-medium block">
+                          +₹{priceGrowth.toLocaleString()} above floor
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 2-Column Split Terminal Stage */}
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                      
+                      {/* LEFT COLUMN: Sharemarket Graph & Live Leaderboard (7 Cols) */}
+                      <div className="lg:col-span-7 space-y-4">
+                        
+                        {/* Live Sharemarket Graph Card */}
+                        <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-xs font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5">
+                              <svg className="w-4 h-4 text-[#1b4e7e]" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941" />
+                              </svg>
+                              Price Trajectory Graph
+                            </span>
+                            <span className="text-[10px] font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60">
+                              Ascending Curve (H1 Wins)
+                            </span>
+                          </div>
+
+                          {/* SVG Canvas */}
+                          <div className="w-full h-36 relative select-none">
+                            <svg className="w-full h-full overflow-visible" viewBox={`0 0 ${graphWidth} ${graphHeight}`}>
+                              <defs>
+                                <linearGradient id="userMarketAreaGradient" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.25" />
+                                  <stop offset="70%" stopColor="#059669" stopOpacity="0.05" />
+                                  <stop offset="100%" stopColor="#047857" stopOpacity="0.0" />
+                                </linearGradient>
+                                <linearGradient id="userMarketLineGradient" x1="0" y1="1" x2="1" y2="0">
+                                  <stop offset="0%" stopColor="#0284c7" />
+                                  <stop offset="60%" stopColor="#0ea5e9" />
+                                  <stop offset="100%" stopColor="#10b981" />
+                                </linearGradient>
+                              </defs>
+
+                              {/* Grid Lines */}
+                              {[0.1, 0.5, 0.9].map((ratio, gIdx) => {
+                                const y = padY + ratio * plotHeight;
+                                const priceAtLine = Math.round(maxAmount - ratio * priceSpan);
+                                return (
+                                  <g key={gIdx}>
+                                    <line
+                                      x1={padX}
+                                      y1={y}
+                                      x2={graphWidth - padX}
+                                      y2={y}
+                                      stroke="#f1f5f9"
+                                      strokeWidth="1"
+                                      strokeDasharray="4 4"
+                                    />
+                                    <text
+                                      x={padX - 6}
+                                      y={y + 3}
+                                      fill="#94a3b8"
+                                      fontSize="9"
+                                      fontFamily="monospace"
+                                      textAnchor="end"
+                                    >
+                                      ₹{priceAtLine.toLocaleString()}
+                                    </text>
+                                  </g>
+                                );
+                              })}
+
+                              {/* Area & Line */}
+                              <path d={areaPath} fill="url(#userMarketAreaGradient)" />
+                              <path
+                                d={linePath}
+                                fill="none"
+                                stroke="url(#userMarketLineGradient)"
+                                strokeWidth="2.5"
+                                strokeLinecap="round"
+                              />
+
+                              {/* Data Nodes */}
+                              {svgPoints.map((pt, pIdx) => {
+                                const isLatest = pIdx === svgPoints.length - 1;
+                                const isHovered = hoveredChartPoint?.round === pt.round;
+
+                                return (
+                                  <g key={pIdx} className="cursor-pointer">
+                                    {isLatest && (
+                                      <circle cx={pt.x} cy={pt.y} r="7" fill="#10b981" opacity="0.25" className="animate-ping" />
+                                    )}
+
+                                    <circle
+                                      cx={pt.x}
+                                      cy={pt.y}
+                                      r={isHovered ? "5.5" : isLatest ? "4.5" : "3"}
+                                      fill={isLatest ? "#10b981" : isHovered ? "#3b82f6" : "#1b4e7e"}
+                                      stroke="#ffffff"
+                                      strokeWidth="2"
+                                      onMouseEnter={() =>
+                                        setHoveredChartPoint({
+                                          round: pt.round,
+                                          amount: pt.amount,
+                                          bidder: pt.bidder,
+                                          org: pt.org,
+                                          time: pt.time,
+                                          x: pt.x,
+                                          y: pt.y,
+                                        })
+                                      }
+                                      onMouseLeave={() => setHoveredChartPoint(null)}
+                                    />
+                                  </g>
+                                );
+                              })}
+                            </svg>
+
+                            {/* Tooltip */}
+                            {hoveredChartPoint && (
+                              <div
+                                className="absolute z-20 pointer-events-none bg-slate-900 text-white rounded-lg p-2 text-[10px] shadow-xl font-mono"
+                                style={{
+                                  left: `${Math.min(Math.max(hoveredChartPoint.x - 50, 10), graphWidth - 130)}px`,
+                                  top: `${Math.max(hoveredChartPoint.y - 60, 0)}px`,
+                                }}
+                              >
+                                <span className="text-emerald-400 font-bold block text-xs">
+                                  ₹{hoveredChartPoint.amount.toLocaleString()}
+                                </span>
+                                <span className="text-slate-200 block truncate max-w-[120px]">
+                                  {hoveredChartPoint.bidder}
+                                </span>
+                                <span className="text-slate-400 block">
+                                  {hoveredChartPoint.time} • Round {hoveredChartPoint.round}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Live Leaderboard & Chronological Activity Stream */}
+                        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
+                          <div className="bg-slate-100/90 px-3.5 py-2 border-b border-slate-200 flex items-center justify-between">
+                            <div className="flex gap-1.5">
+                              <button 
+                                type="button"
+                                onClick={() => setTerminalChartTab("graph")}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${terminalChartTab === "graph" ? "bg-[#1b4e7e] text-white shadow-2xs" : "text-slate-600 hover:bg-slate-200/60"}`}
+                              >
+                                Leaderboard ({terminalBidsData?.leaderboard?.length || 0})
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => setTerminalChartTab("history")}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${terminalChartTab === "history" ? "bg-[#1b4e7e] text-white shadow-2xs" : "text-slate-600 hover:bg-slate-200/60"}`}
+                              >
+                                Activity Stream ({rawBidsList.length})
+                              </button>
+                            </div>
+                            <span className="text-[10px] font-mono text-slate-400 font-bold hidden sm:inline">
+                              Live
+                            </span>
+                          </div>
+
+                          {terminalChartTab === "graph" && (
+                            <div className="p-3">
+                              {terminalBidsData?.leaderboard && terminalBidsData.leaderboard.length > 0 ? (
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-xs text-left text-slate-700">
+                                    <thead className="bg-slate-50 text-[10px] text-slate-400 uppercase tracking-wider font-extrabold border-b border-slate-200">
+                                      <tr>
+                                        <th className="px-3 py-2">Rank</th>
+                                        <th className="px-3 py-2">Buyer / Organization</th>
+                                        <th className="px-3 py-2">Best Bid (₹)</th>
+                                        <th className="px-3 py-2">Rounds</th>
+                                        <th className="px-3 py-2">Status</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                      {terminalBidsData.leaderboard.map((item: any, idx: number) => (
+                                        <tr key={idx} className={`hover:bg-slate-50/70 transition-colors ${idx === 0 ? "bg-emerald-50/40" : ""}`}>
+                                          <td className="px-3 py-2.5">
+                                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-black font-mono ${idx === 0 ? "bg-amber-400 text-slate-900 shadow-2xs" : "bg-slate-100 text-slate-700"}`}>
+                                              {item.rank}
+                                            </span>
+                                          </td>
+                                          <td className="px-3 py-2.5">
+                                            <div className="font-bold text-slate-900 flex items-center gap-1">
+                                              {idx === 0 && <span className="text-amber-500">👑</span>}
+                                              <span>{item.bidderName}</span>
+                                            </div>
+                                            <span className="text-[10px] text-slate-500 block truncate max-w-[140px]">
+                                              {item.bidderOrg || "Contractor"}
+                                            </span>
+                                          </td>
+                                          <td className="px-3 py-2.5 font-mono font-black text-emerald-700 text-sm">
+                                            ₹{Number(item.bestBid).toLocaleString()}
+                                          </td>
+                                          <td className="px-3 py-2.5 font-mono text-slate-600">
+                                            {item.bidCount}
+                                          </td>
+                                          <td className="px-3 py-2.5">
+                                            {idx === 0 ? (
+                                              <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[9px] font-extrabold border border-emerald-200">
+                                                H1 LEADING
+                                              </span>
+                                            ) : (
+                                              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-[9px] font-bold">
+                                                OUTBID
+                                              </span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              ) : (
+                                <div className="py-6 text-center text-slate-400 text-xs">
+                                  No bids placed yet. Place the opening bid!
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {terminalChartTab === "history" && (
+                            <div className="p-3">
+                              {rawBidsList.length > 0 ? (
+                                <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                                  {rawBidsList.map((bid: any, idx: number) => (
+                                    <div key={idx} className="p-2.5 bg-slate-50 border border-slate-200/80 rounded-lg flex items-center justify-between text-xs">
+                                      <div>
+                                        <div className="flex items-center gap-1.5">
+                                          <span className="font-bold text-slate-900">{bid.bidderName}</span>
+                                          {idx === 0 && (
+                                            <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[9px] font-extrabold">
+                                              LATEST
+                                            </span>
+                                          )}
+                                        </div>
+                                        <span className="text-[10px] text-slate-400 font-mono">
+                                          {new Date(bid.created_at).toLocaleTimeString()}
+                                        </span>
+                                      </div>
+                                      <div className="font-mono font-black text-emerald-700 text-sm">
+                                        ₹{Number(bid.bidAmount).toLocaleString()}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="py-6 text-center text-slate-400 text-xs">
+                                  No activity records logged yet.
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* RIGHT COLUMN: Interactive Bidding Console (5 Cols) */}
+                      <div className="lg:col-span-5 space-y-4">
+                        
+                        {/* Live Standing Banner */}
+                        <div className={`p-3.5 rounded-xl border text-xs ${
+                          isUserH1Leader
+                            ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                            : "bg-amber-50 border-amber-200 text-amber-800"
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-[11px]">
+                              {isUserH1Leader ? "👑 You hold the H1 Leading Bid!" : "⚠️ Outbid Position"}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${
+                              isUserH1Leader ? "bg-emerald-200 text-emerald-900" : "bg-amber-200 text-amber-900"
+                            }`}>
+                              {isUserH1Leader ? "LEADING" : "ACTION REQUIRED"}
+                            </span>
+                          </div>
+                          <p className="text-[10px] mt-1 text-slate-600">
+                            {isUserH1Leader
+                              ? "You are currently the top bidder. Other contractors must bid higher to beat you."
+                              : `Submit a bid strictly greater than ₹${currentHighest.toLocaleString()} to claim the H1 rank.`}
+                          </p>
+                        </div>
+
+                        {/* Bidding Console */}
+                        <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 shadow-2xs space-y-4">
+                          <div>
+                            <h3 className="text-xs font-black uppercase text-slate-800 tracking-wider">
+                              Execute Higher Bid
+                            </h3>
+                            <p className="text-[11px] text-slate-500 font-medium">
+                              Current Benchmark: <strong className="text-emerald-700 font-mono">₹{currentHighest.toLocaleString()}</strong>
+                            </p>
+                          </div>
+
+                          {/* Quick Increment Shortcuts */}
+                          <div className="space-y-1.5">
+                            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                              Quick Increment Chips
+                            </span>
+                            <div className="grid grid-cols-3 gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => applyQuickBidIncrement(5000, false)}
+                                className="py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-700 transition-colors cursor-pointer text-center"
+                              >
+                                +₹5,000
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => applyQuickBidIncrement(25000, false)}
+                                className="py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-700 transition-colors cursor-pointer text-center"
+                              >
+                                +₹25,000
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => applyQuickBidIncrement(50000, false)}
+                                className="py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-700 transition-colors cursor-pointer text-center"
+                              >
+                                +₹50,000
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => applyQuickBidIncrement(1, true)}
+                                className="py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-mono font-bold text-emerald-800 transition-colors cursor-pointer text-center"
+                              >
+                                +1%
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => applyQuickBidIncrement(2.5, true)}
+                                className="py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-mono font-bold text-emerald-800 transition-colors cursor-pointer text-center"
+                              >
+                                +2.5%
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => applyQuickBidIncrement(5, true)}
+                                className="py-1.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg text-xs font-mono font-bold text-emerald-800 transition-colors cursor-pointer text-center"
+                              >
+                                +5%
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Bid Input Form */}
+                          <form onSubmit={handleReverseArenaBid} className="space-y-3.5">
+                            <div>
+                              <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">
+                                Your Target Bid Amount (₹)
+                              </label>
+                              <div className="relative rounded-lg shadow-2xs">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 font-bold text-sm">
+                                  ₹
+                                </div>
+                                <input
+                                  type="number"
+                                  required
+                                  value={reverseBidInput}
+                                  onChange={(e) => setReverseBidInput(e.target.value)}
+                                  className="w-full pl-7 pr-3 py-2 bg-[#f8fafc] border border-slate-200 rounded-lg text-sm font-mono font-bold text-slate-800 focus:outline-none focus:border-[#1b4e7e] transition-all placeholder:text-slate-400"
+                                  placeholder={`e.g. ${currentHighest + 1000}`}
+                                />
+                              </div>
+
+                              {reverseBidInput && !isNaN(parseFloat(reverseBidInput)) && (
+                                <div className="mt-1 text-[10px] font-mono">
+                                  {parseFloat(reverseBidInput) > currentHighest ? (
+                                    <span className="text-emerald-700 font-bold">
+                                      ✓ Valid: +₹{(parseFloat(reverseBidInput) - currentHighest).toLocaleString()} above H1
+                                    </span>
+                                  ) : (
+                                    <span className="text-rose-600 font-bold">
+                                      ✕ Must be &gt; ₹{currentHighest.toLocaleString()}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+
+                            <button
+                              type="submit"
+                              disabled={isSubmittingTerminalBid}
+                              className="w-full py-2.5 bg-[#1b4e7e] hover:bg-[#133c62] disabled:opacity-50 text-white text-xs font-bold rounded-lg cursor-pointer transition-colors shadow-xs flex items-center justify-center gap-1.5"
+                            >
+                              {isSubmittingTerminalBid ? (
+                                <>
+                                  <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                  <span>Submitting Bid...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span>Place Higher Bid &amp; Claim H1</span>
+                                  <span>→</span>
+                                </>
+                              )}
+                            </button>
+                          </form>
+
+                          <div className="pt-2 border-t border-slate-100 text-[10px] text-slate-400 flex items-center justify-between">
+                            <span className="truncate max-w-[150px]">Bidder: <strong className="text-slate-600">{user?.fullName || "Verified User"}</strong></span>
+                            <span>SHA-256 Validated</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Modal Footer */}
+                  <div className="bg-slate-50 border-t border-slate-200 p-3.5 px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <div className="text-xs text-slate-500 font-medium flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                      <span>Connected to Live Auction Engine</span>
+                    </div>
+
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                      <button 
+                        type="button" 
+                        onClick={() => fetchTerminalBids(currentAuction.id)}
+                        className="w-full sm:w-auto px-3.5 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <svg className="w-3.5 h-3.5 text-slate-600" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
+                        <span>Refresh Feed</span>
+                      </button>
+
+                      <button 
+                        type="button" 
+                        onClick={() => setReverseArenaBidOpen(false)}
+                        className="w-full sm:w-auto px-5 py-1.5 bg-[#1b4e7e] hover:bg-[#133c62] text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-xs"
+                      >
+                        Close Terminal
+                      </button>
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}
