@@ -385,9 +385,9 @@ export default function DashboardPage() {
     });
   }, [tenders]);
 
-  // Dynamic filtered list for Live Tenders tab
+  // Dynamic filtered list for Live Tenders tab: strictly active and unelapsed tenders
   const filteredLiveTenders = useMemo(() => {
-    let list = tenders.filter((t) => t.tenderStatus !== "AWARDED");
+    let list = tenders.filter((t) => t.tenderStatus !== "AWARDED" && !isTenderClosed(t));
 
     if (liveSearchQuery.trim()) {
       const q = liveSearchQuery.toLowerCase();
@@ -602,8 +602,15 @@ export default function DashboardPage() {
         } catch {}
       }
     }
-    const str = tender.deadline?.toLowerCase() || '';
-    if (str.includes('closed') || str.includes('00d : 00h : 00m : 00s') || str.includes('00h : 00m : 00s')) {
+    const str = (tender.deadline || tender.closingDate || '').toLowerCase().trim();
+    if (
+      str.includes('closed') ||
+      str.includes('ended') ||
+      str.includes('expired') ||
+      str === '00d : 00h : 00m : 00s' ||
+      str === '00h : 00m : 00s' ||
+      str === '00:00:00'
+    ) {
       return true;
     }
     return false;
@@ -621,6 +628,14 @@ export default function DashboardPage() {
 
         setTenders((prevTenders) =>
           prevTenders.map((t) => {
+            if (t.tenderStatus === 'AWARDED' || (t.closingDate || '').toLowerCase().includes('00d : 00h : 00m : 00s')) {
+              return {
+                ...t,
+                deadline: '00d : 00h : 00m : 00s',
+                closingDate: '00d : 00h : 00m : 00s',
+              };
+            }
+
             const targetEpoch = deadlineMap[t.id];
             if (!targetEpoch) return t;
 
@@ -628,7 +643,8 @@ export default function DashboardPage() {
             if (diff <= 0) {
               return {
                 ...t,
-                deadline: 'Closed',
+                deadline: '00d : 00h : 00m : 00s',
+                closingDate: '00d : 00h : 00m : 00s',
               };
             }
 
@@ -651,26 +667,49 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Real-time live polling sync: picks up administrative window closures and awards within 2s
+  useEffect(() => {
+    const syncTimer = setInterval(async () => {
+      try {
+        const res = await fetch('/api/tenders');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.tenders && Array.isArray(data.tenders)) {
+            setTenders(normalizeTenders(data.tenders));
+          }
+        }
+      } catch {}
+    }, 2000);
+    return () => clearInterval(syncTimer);
+  }, []);
+
   // Tenders & Auctions Normalization to prevent type errors across Admin/User schemas
   const normalizeTenders = (raw: any[]): TenderItem[] => {
-    return raw.map((item) => ({
-      id: item.id,
-      title: item.title,
-      dept: item.dept || item.client || "",
-      location: item.location || "",
-      value: item.value || "",
-      deadline: item.deadline || item.closingDate || "",
-      closingDate: item.closingDate || item.deadline || "",
-      match: item.match || item.matchType || "High Match",
-      status: (item.status === "AWARDED" || item.status === "submitted") ? "submitted" : "active",
-      tenderStatus: item.status || "OPEN",
-      winnerApplicantId: item.winnerApplicantId || undefined,
-      winnerName: item.winnerName || undefined,
-      winnerOrg: item.winnerOrg || undefined,
-      winnerAmount: item.winnerAmount || undefined,
-      awardedAt: item.awardedAt || undefined,
-      myBid: item.myBid || undefined,
-    }));
+    return raw.map((item) => {
+      const isClosed = 
+        item.status === 'AWARDED' ||
+        (item.closingDate || '').toLowerCase().includes('00d : 00h : 00m : 00s') ||
+        (item.deadline || '').toLowerCase().includes('00d : 00h : 00m : 00s') ||
+        (item.closingDate || '').toLowerCase().includes('closed');
+
+      return {
+        id: item.id,
+        title: item.title,
+        dept: item.dept || item.client || "",
+        location: item.location || "",
+        value: item.value || "",
+        deadline: isClosed ? '00d : 00h : 00m : 00s' : (item.deadline || item.closingDate || ""),
+        closingDate: isClosed ? '00d : 00h : 00m : 00s' : (item.closingDate || item.deadline || ""),
+        match: item.match || item.matchType || "High Match",
+        status: (item.status === "AWARDED" || item.status === "submitted") ? "submitted" : "active",
+        tenderStatus: item.status || "OPEN",
+        winnerApplicantId: item.winnerApplicantId || undefined,
+        winnerName: item.winnerName || undefined,
+        winnerOrg: item.winnerOrg || undefined,
+        winnerAmount: item.winnerAmount || undefined,
+        awardedAt: item.awardedAt || undefined,
+      };
+    });
   };
 
   const normalizeAuctions = (raw: any[]): ArenaAuctionItem[] => {
@@ -1497,9 +1536,15 @@ export default function DashboardPage() {
                                   <span className="text-slate-400 font-medium">
                                     Bid Closes in:
                                   </span>{" "}
-                                  <span className="font-bold text-slate-800">
-                                    {item.deadline}
-                                  </span>
+                                  {isTenderClosed(item) ? (
+                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold">
+                                      00d : 00h : 00m : 00s • Elapsed
+                                    </span>
+                                  ) : (
+                                    <span className="font-bold text-slate-800">
+                                      {item.deadline}
+                                    </span>
+                                  )}
                                 </p>
                               </div>
                             </div>
@@ -2493,11 +2538,15 @@ export default function DashboardPage() {
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
                               Timelock Expiry
                             </span>
-                            <span className={`text-xs font-mono font-bold block mt-0.5 ${
-                              closed ? 'text-slate-400' : 'text-rose-600 font-extrabold'
-                            }`}>
-                              {tender.deadline}
-                            </span>
+                            {closed ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold mt-1">
+                                00d : 00h : 00m : 00s • Elapsed
+                              </span>
+                            ) : (
+                              <span className="text-xs font-mono font-extrabold text-rose-600 block mt-0.5">
+                                {tender.deadline}
+                              </span>
+                            )}
                           </div>
 
                           <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
@@ -2686,9 +2735,15 @@ export default function DashboardPage() {
 
                         <div className="bg-slate-50 rounded-lg p-3">
                           <p className="text-[10px] text-slate-400">Deadline</p>
-                          <p className="text-xs font-bold text-red-600 mt-1">
-                            {tender.deadline}
-                          </p>
+                          {isTenderClosed(tender) ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold mt-1">
+                              00d : 00h : 00m : 00s • Elapsed
+                            </span>
+                          ) : (
+                            <p className="text-xs font-bold text-red-600 mt-1">
+                              {tender.deadline}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -2897,71 +2952,95 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            {/* 1. Awarded Tenders from Database */}
-            {tenders.filter((t) => t.tenderStatus === "AWARDED").length > 0 && (
+            {/* 1. Completed & Awarded Tenders from Database */}
+            {tenders.filter((t) => t.tenderStatus === "AWARDED" || isTenderClosed(t)).length > 0 && (
               <div className="space-y-4">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Awarded Procurement Notices</h3>
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Past & Evaluated Procurement Notices</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                   {tenders
-                    .filter((t) => t.tenderStatus === "AWARDED")
-                    .map((tender) => (
-                      <div
-                        key={tender.id}
-                        className="bg-white border-2 border-emerald-200/80 rounded-xl p-5 shadow-sm space-y-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <span className="text-[10px] font-bold text-[#1b4e7e] font-mono">
-                              {tender.id}
-                            </span>
-                            <h3 className="text-sm font-extrabold text-slate-800 mt-1">
-                              {tender.title}
-                            </h3>
-                            <p className="text-xs text-slate-500 mt-0.5">
-                              {tender.dept} • {tender.location}
-                            </p>
-                          </div>
+                    .filter((t) => t.tenderStatus === "AWARDED" || isTenderClosed(t))
+                    .map((tender) => {
+                      const isAwarded = tender.tenderStatus === 'AWARDED';
 
-                          <span className="px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-extrabold shrink-0 border border-emerald-300">
-                            AWARDED
-                          </span>
-                        </div>
+                      return (
+                        <div
+                          key={tender.id}
+                          className={`bg-white border-2 rounded-xl p-5 shadow-sm space-y-4 ${
+                            isAwarded ? 'border-emerald-200/80' : 'border-slate-200'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <span className="text-[10px] font-bold text-[#1b4e7e] font-mono">
+                                {tender.id}
+                              </span>
+                              <h3 className="text-sm font-extrabold text-slate-800 mt-1">
+                                {tender.title}
+                              </h3>
+                              <p className="text-xs text-slate-500 mt-0.5">
+                                {tender.dept} • {tender.location}
+                              </p>
+                            </div>
 
-                        {/* Prominent Winner Display Box */}
-                        <div className="bg-emerald-50/80 border border-emerald-200 rounded-lg p-3.5 space-y-2">
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
-                              Selected Winner:
-                            </span>
-                            <span className="font-extrabold text-emerald-950">
-                              {tender.winnerOrg || tender.winnerName || 'Awarded Bidder'}
+                            <span className={`px-2.5 py-1 rounded-md text-[10px] font-extrabold shrink-0 border ${
+                              isAwarded 
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : 'bg-slate-100 text-slate-700 border-slate-300'
+                            }`}>
+                              {isAwarded ? 'AWARDED' : 'EVALUATION IN PROGRESS'}
                             </span>
                           </div>
 
-                          {tender.winnerName && tender.winnerOrg && (
-                            <div className="flex items-center justify-between text-xs text-emerald-700">
-                              <span className="text-[10px]">Authorized Rep:</span>
-                              <span className="font-semibold">{tender.winnerName}</span>
+                          {isAwarded ? (
+                            /* Prominent Winner Display Box */
+                            <div className="bg-emerald-50/80 border border-emerald-200 rounded-lg p-3.5 space-y-2">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                                  Selected Winner:
+                                </span>
+                                <span className="font-extrabold text-emerald-950">
+                                  {tender.winnerOrg || tender.winnerName || 'Awarded Bidder'}
+                                </span>
+                              </div>
+
+                              {tender.winnerName && tender.winnerOrg && (
+                                <div className="flex items-center justify-between text-xs text-emerald-700">
+                                  <span className="text-[10px]">Authorized Rep:</span>
+                                  <span className="font-semibold">{tender.winnerName}</span>
+                                </div>
+                              )}
+
+                              <div className="flex items-center justify-between text-xs pt-1 border-t border-emerald-200/60">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+                                  Winning Bid Amount:
+                                </span>
+                                <span className="font-black text-emerald-900">
+                                  {tender.winnerAmount || tender.value}
+                                </span>
+                              </div>
+
+                              {tender.awardedAt && (
+                                <div className="text-[10px] text-emerald-600 text-right pt-0.5">
+                                  Awarded On: {new Date(tender.awardedAt).toLocaleDateString('en-GB')}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="bg-slate-50 border border-slate-200 rounded-lg p-3.5 space-y-1">
+                              <div className="flex items-center justify-between text-xs">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                  Submission Window:
+                                </span>
+                                <span className="font-bold text-slate-700">Closed (Deadline Elapsed)</span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 pt-1">
+                                Sealed bids have been unsealed. Committee evaluation and contractor selection in progress.
+                              </p>
                             </div>
                           )}
-
-                          <div className="flex items-center justify-between text-xs pt-1 border-t border-emerald-200/60">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-800">
-                              Winning Bid Amount:
-                            </span>
-                            <span className="font-black text-emerald-900">
-                              {tender.winnerAmount || tender.value}
-                            </span>
-                          </div>
-
-                          {tender.awardedAt && (
-                            <div className="text-[10px] text-emerald-600 text-right pt-0.5">
-                              Awarded On: {new Date(tender.awardedAt).toLocaleDateString('en-GB')}
-                            </div>
-                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                 </div>
               </div>
             )}
