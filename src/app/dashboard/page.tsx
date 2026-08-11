@@ -43,6 +43,8 @@ interface TenderItem {
   winnerOrg?: string;
   winnerAmount?: string;
   awardedAt?: string;
+  endsAt?: string | number;
+  created_at?: string;
   myBid?: string;
   distanceKm?: number;
   distanceText?: string;
@@ -430,6 +432,168 @@ export default function DashboardPage() {
     });
   }, [tenders]);
 
+  // Dynamic live countdown calculator for tenders
+  const getUserTenderCountdown = (t: TenderItem) => {
+    if (t.tenderStatus === 'AWARDED' || (t.status === 'submitted' && t.tenderStatus === 'AWARDED')) {
+      return {
+        isExpired: true,
+        diff: 0,
+        days: '00',
+        hours: '00',
+        mins: '00',
+        secs: '00',
+        text: '00d : 00h : 00m : 00s • Elapsed',
+        formatted: '00d : 00h : 00m : 00s',
+      };
+    }
+
+    const lowerClosing = (t.closingDate || t.deadline || '').toLowerCase().trim();
+    if (
+      lowerClosing.includes('closed') ||
+      lowerClosing.includes('ended') ||
+      lowerClosing.includes('expired') ||
+      lowerClosing === '00d : 00h : 00m : 00s' ||
+      lowerClosing === '00h : 00m : 00s' ||
+      lowerClosing === '00:00:00'
+    ) {
+      return {
+        isExpired: true,
+        diff: 0,
+        days: '00',
+        hours: '00',
+        mins: '00',
+        secs: '00',
+        text: '00d : 00h : 00m : 00s • Elapsed',
+        formatted: '00d : 00h : 00m : 00s',
+      };
+    }
+
+    let targetEpoch = 0;
+    if (t.endsAt) {
+      const parsedEnds = new Date(t.endsAt).getTime();
+      if (!isNaN(parsedEnds) && parsedEnds > 0) {
+        targetEpoch = parsedEnds;
+      }
+    }
+
+    if (!targetEpoch && typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('axiom_tender_deadlines');
+        if (saved) {
+          const map = JSON.parse(saved);
+          if (map[t.id]) targetEpoch = map[t.id];
+        }
+      } catch {}
+    }
+
+    if (!targetEpoch) {
+      const daysMatch = lowerClosing.match(/(\d+)\s*d/);
+      const hoursMatch = lowerClosing.match(/(\d+)\s*h/);
+      const minsMatch = lowerClosing.match(/(\d+)\s*m/);
+      const secsMatch = lowerClosing.match(/(\d+)\s*s/);
+
+      if (daysMatch || hoursMatch || minsMatch || secsMatch) {
+        let totalSecs = 0;
+        if (daysMatch) totalSecs += parseInt(daysMatch[1], 10) * 86400;
+        if (hoursMatch) totalSecs += parseInt(hoursMatch[1], 10) * 3600;
+        if (minsMatch) totalSecs += parseInt(minsMatch[1], 10) * 60;
+        if (secsMatch) totalSecs += parseInt(secsMatch[1], 10);
+
+        if (totalSecs === 0) {
+          return {
+            isExpired: true,
+            diff: 0,
+            days: '00',
+            hours: '00',
+            mins: '00',
+            secs: '00',
+            text: '00d : 00h : 00m : 00s • Elapsed',
+            formatted: '00d : 00h : 00m : 00s',
+          };
+        }
+
+        if (t.created_at) {
+          const createdEpoch = new Date(t.created_at).getTime();
+          if (!isNaN(createdEpoch)) {
+            targetEpoch = createdEpoch + totalSecs * 1000;
+          }
+        }
+
+        if (!targetEpoch) {
+          targetEpoch = Date.now() + totalSecs * 1000;
+          if (typeof window !== 'undefined') {
+            try {
+              const saved = localStorage.getItem('axiom_tender_deadlines');
+              const map = saved ? JSON.parse(saved) : {};
+              map[t.id] = targetEpoch;
+              localStorage.setItem('axiom_tender_deadlines', JSON.stringify(map));
+            } catch {}
+          }
+        }
+      } else {
+        const parsed = new Date(t.closingDate || t.deadline || '').getTime();
+        if (!isNaN(parsed) && parsed > 0) {
+          targetEpoch = parsed;
+        }
+      }
+    }
+
+    if (!targetEpoch) {
+      return {
+        isExpired: false,
+        diff: 999999,
+        days: '00',
+        hours: '00',
+        mins: '00',
+        secs: '00',
+        text: t.deadline || t.closingDate || '00d : 00h : 00m : 00s',
+        formatted: t.deadline || t.closingDate || '00d : 00h : 00m : 00s',
+      };
+    }
+
+    const diff = targetEpoch - now;
+    if (diff <= 0) {
+      return {
+        isExpired: true,
+        diff: 0,
+        days: '00',
+        hours: '00',
+        mins: '00',
+        secs: '00',
+        text: '00d : 00h : 00m : 00s • Elapsed',
+        formatted: '00d : 00h : 00m : 00s',
+      };
+    }
+
+    const totalSecs = Math.floor(diff / 1000);
+    const d = Math.floor(totalSecs / 86400);
+    const h = Math.floor((totalSecs % 86400) / 3600);
+    const m = Math.floor((totalSecs % 3600) / 60);
+    const s = totalSecs % 60;
+
+    const dStr = d.toString().padStart(2, '0');
+    const hStr = h.toString().padStart(2, '0');
+    const mStr = m.toString().padStart(2, '0');
+    const sStr = s.toString().padStart(2, '0');
+
+    const formatted = `${dStr}d : ${hStr}h : ${mStr}m : ${sStr}s`;
+
+    return {
+      isExpired: false,
+      diff,
+      days: dStr,
+      hours: hStr,
+      mins: mStr,
+      secs: sStr,
+      text: `${formatted} remaining`,
+      formatted,
+    };
+  };
+
+  const isTenderClosed = (tender: TenderItem): boolean => {
+    return getUserTenderCountdown(tender).isExpired;
+  };
+
   // Dynamic filtered list for Live Tenders tab: strictly active and unelapsed tenders
   const filteredLiveTenders = useMemo(() => {
     let list = tenders.filter((t) => t.tenderStatus !== "AWARDED" && !isTenderClosed(t));
@@ -648,84 +812,6 @@ export default function DashboardPage() {
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  function isTenderClosed(tender: TenderItem) {
-  if (tender.tenderStatus === 'AWARDED') return true;
-  if (typeof window !== "undefined") {
-    const saved = localStorage.getItem('axiom_tender_deadlines');
-    if (saved) {
-      try {
-        const map = JSON.parse(saved);
-        if (map[tender.id] && Date.now() >= map[tender.id]) {
-          return true;
-        }
-      } catch {}
-    }
-  }
-  const str = (tender.deadline || tender.closingDate || '').toLowerCase().trim();
-  if (
-    str.includes('closed') ||
-    str.includes('ended') ||
-    str.includes('expired') ||
-    str === '00d : 00h : 00m : 00s' ||
-    str === '00h : 00m : 00s' ||
-    str === '00:00:00'
-  ) {
-    return true;
-  }
-  return false;
-}
-
-  // Real-time ticker to update tender countdowns and detect expired submission windows
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const savedDeadlines = typeof window !== 'undefined' ? localStorage.getItem('axiom_tender_deadlines') : null;
-      if (!savedDeadlines) return;
-
-      try {
-        const deadlineMap: Record<string, number> = JSON.parse(savedDeadlines);
-        const now = Date.now();
-
-        setTenders((prevTenders) =>
-          prevTenders.map((t) => {
-            if (t.tenderStatus === 'AWARDED' || (t.closingDate || '').toLowerCase().includes('00d : 00h : 00m : 00s')) {
-              return {
-                ...t,
-                deadline: '00d : 00h : 00m : 00s',
-                closingDate: '00d : 00h : 00m : 00s',
-              };
-            }
-
-            const targetEpoch = deadlineMap[t.id];
-            if (!targetEpoch) return t;
-
-            const diff = targetEpoch - now;
-            if (diff <= 0) {
-              return {
-                ...t,
-                deadline: '00d : 00h : 00m : 00s',
-                closingDate: '00d : 00h : 00m : 00s',
-              };
-            }
-
-            const d = Math.floor(diff / (1000 * 60 * 60 * 24));
-            const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            const s = Math.floor((diff % (1000 * 60)) / 1000);
-
-            return {
-              ...t,
-              deadline: `${d.toString().padStart(2, '0')}d : ${h.toString().padStart(2, '0')}h : ${m.toString().padStart(2, '0')}m : ${s.toString().padStart(2, '0')}s`,
-            };
-          })
-        );
-      } catch (err) {
-        console.error('Error updating tender countdown ticker:', err);
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
-
   // Real-time live polling sync: picks up administrative window closures and awards within 2s
   useEffect(() => {
     const syncTimer = setInterval(async () => {
@@ -767,6 +853,8 @@ export default function DashboardPage() {
         winnerOrg: item.winnerOrg || undefined,
         winnerAmount: item.winnerAmount || undefined,
         awardedAt: item.awardedAt || undefined,
+        endsAt: item.endsAt || undefined,
+        created_at: item.created_at || undefined,
       };
     });
   };
@@ -1828,7 +1916,7 @@ export default function DashboardPage() {
                                     </span>
                                   ) : (
                                     <span className="font-bold text-slate-800">
-                                      {item.deadline}
+                                      {getUserTenderCountdown(item).formatted}
                                     </span>
                                   )}
                                 </p>
@@ -3168,7 +3256,7 @@ export default function DashboardPage() {
                               </span>
                             ) : (
                               <span className="text-xs font-mono font-extrabold text-rose-600 block mt-0.5">
-                                {tender.deadline}
+                                {getUserTenderCountdown(tender).formatted}
                               </span>
                             )}
                           </div>
@@ -3365,7 +3453,7 @@ export default function DashboardPage() {
                             </span>
                           ) : (
                             <p className="text-xs font-bold text-red-600 mt-1">
-                              {tender.deadline}
+                              {getUserTenderCountdown(tender).formatted}
                             </p>
                           )}
                         </div>
@@ -4719,7 +4807,10 @@ export default function DashboardPage() {
                 <strong>Estimated Value:</strong> {selectedTender.value}
               </p>
               <p>
-                <strong>Submission Deadline:</strong> {selectedTender.deadline}
+                <strong>Submission Deadline:</strong>{" "}
+                {isTenderClosed(selectedTender)
+                  ? "00d : 00h : 00m : 00s • Elapsed"
+                  : getUserTenderCountdown(selectedTender).formatted}
               </p>
             </div>
 
