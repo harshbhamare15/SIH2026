@@ -328,7 +328,7 @@ export default function RegisterComponent() {
               Create Your Account
             </h2>
             <p className="text-white/80 text-xs mt-0.5">
-              Register on the Central Public Procurement Portal to get started.
+              Register on the Axiom Public Procurement Portal to get started.
             </p>
           </div>
           {/* User profile outline icon overlay */}

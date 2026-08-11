@@ -54,12 +54,12 @@ export const StatsDashboard: React.FC = () => {
       ),
     },
     {
-      title: 'Active GeM Bids',
+      title: 'Active Axiom Bids',
       count: '49,835',
       central: '49,835',
       state: 'Unified (All)',
       color: 'border-amber-600',
-      link: '#gem-bids',
+      link: '#axiom-bids',
       icon: (
         <svg className="w-8 h-8 text-amber-700" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5h16.5M5.25 7.5h13.5m-12 3h10.5m-12 3h13.5m-15 3h16.5"/>

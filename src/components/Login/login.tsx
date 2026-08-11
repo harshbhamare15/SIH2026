@@ -64,7 +64,7 @@ export default function LoginComponent() {
               Login to Your Account
             </h2>
             <p className="text-white/80 text-[11px] mt-0.5">
-              Secure gateway access to the Central Public Procurement Portal.
+              Secure gateway access to the Axiom Public Procurement Portal.
             </p>
           </div>
           {/* User lock outline icon overlay */}

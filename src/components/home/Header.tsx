@@ -26,28 +26,27 @@ export const Header: React.FC = () => {
               Government of India
             </span>
             <h1 className="text-xl md:text-2xl font-bold text-primary tracking-tight">
-              Central Public Procurement Portal
+              AXIOM Public Procurement Portal
             </h1>
             <span className="text-[10px] md:text-xs text-gray-500 font-medium italic mt-0.5">
-              Ministry of Finance | Department of Expenditure
+              Decentralized Timelock Escrow & Sealed-Bid Platform
             </span>
           </div>
         </div>
 
-        {/* Right Side: GeM-CPPP Unified Logo & Platform Metadata */}
+        {/* Right Side: Axiom Unified Logo & Platform Metadata */}
         <div className="flex items-center gap-4">
           <div className="flex flex-col text-right hidden sm:flex">
             <span className="text-xs font-bold text-primary px-2 py-0.5 bg-primary-light border border-primary/20 rounded">
-              Unified Portal
+              Axiom Engine
             </span>
-            <span className="text-[10px] text-gray-400 mt-1">GeM & CPPP Integration</span>
+            <span className="text-[10px] text-gray-400 mt-1">Cryptographic Procurement</span>
           </div>
 
           <div className="relative hover:scale-102 transition-transform duration-200">
-            {/* We will draw a premium fallback text logo representing GeM | CPPP */}
             <div className="flex items-center border-l-2 border-primary/30 pl-4 h-12">
-              <span className="text-2xl font-black tracking-tighter text-amber-500 mr-1.5">GeM</span>
-              <span className="text-2xl font-extrabold text-primary tracking-tight border-l border-gray-300 pl-2">CPPP</span>
+              <span className="text-2xl font-black tracking-wider text-amber-500 mr-1.5">AXIOM</span>
+              <span className="text-xs font-extrabold uppercase tracking-widest text-primary border-l border-gray-300 pl-2">VAULT</span>
             </div>
           </div>
         </div>

@@ -11,7 +11,7 @@ export default function FooterSimple() {
         <div className="space-y-3">
           <h4 className="text-white font-bold text-sm">About Us</h4>
           <p className="leading-relaxed opacity-80">
-            The Central Public Procurement Portal (CPPP) is an initiative of the Government of India to provide a single-point access for public procurements.
+            The Axiom Public Procurement Portal is a next-generation platform providing cryptographically sealed-bid access and timelock escrow for public procurements.
           </p>
         </div>
 

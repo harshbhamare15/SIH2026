@@ -28,12 +28,12 @@ export const Navbar: React.FC = () => {
       href: "/",
     },
     {
-      title: "About GeM-CPPP",
+      title: "About Axiom",
       href: "#about-us",
     },
     {
-      title: "GeM",
-      href: "https://gem.gov.in",
+      title: "Axiom Escrow",
+      href: "#axiom-escrow",
     },
     {
       title: "OMs/GOs/Others",
@@ -71,7 +71,7 @@ export const Navbar: React.FC = () => {
         { title: "Latest Active Tenders", href: "#active-tenders" },
         { title: "Active Corrigendums", href: "#corrigendums" },
         { title: "Result of Tenders (AOC)", href: "#tender-results" },
-        { title: "Bid / RA Notices (GeM)", href: "#gem-notices" },
+        { title: "Bid / RA Notices (Axiom)", href: "#axiom-notices" },
         { title: "Global Tenders", href: "#global-tenders" },
         { title: "High Value Tenders", href: "#high-value" },
         { title: "Tender Search by Product", href: "#search-product" },
@@ -90,13 +90,13 @@ export const Navbar: React.FC = () => {
             { title: "Descriptive Analytics", href: "#descriptive" },
             { title: "Unified Analytics", href: "#unified-analytics" },
             { title: "Key Performance Indicators", href: "#kpi" },
-            { title: "GeM Statistics", href: "#gem-stats" },
+            { title: "Axiom Statistics", href: "#axiom-stats" },
           ]
         : [
             { title: "Descriptive Analytics", href: "#descriptive" },
             { title: "Unified Analytics", href: "#unified-analytics" },
             { title: "Key Performance Indicators", href: "#kpi" },
-            { title: "GeM Statistics", href: "#gem-stats" },
+            { title: "Axiom Statistics", href: "#axiom-stats" },
           ],
     },
     {
@@ -118,7 +118,8 @@ export const Navbar: React.FC = () => {
   ];
 
   const portals = [
-    "Central Public Procurement Portal",
+    "Axiom Public Procurement Portal",
+    "Axiom Timelock Escrow Vault",
     "e-Publishing System",
     "Defence eProcurement Portal",
     "Indian Railways (IREPS)",
@@ -316,7 +317,7 @@ export const Navbar: React.FC = () => {
             </button>
 
             <span className="text-sm font-bold tracking-wider">
-              CPPP PORTAL
+              AXIOM PORTAL
             </span>
 
             <div className="relative group">

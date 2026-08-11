@@ -4,7 +4,7 @@ import React from 'react';
 
 export const Announcement: React.FC = () => {
   const alerts = [
-    'Welcome to the GeM-CPPP portal. Re-designed for higher performance, security, and accessibility.',
+    'Welcome to the Axiom Procurement Portal. Powered by sealed-bid timelock cryptography, high security, and transparency.',
     'ALERT: Standard Bidding Documents (SBDs) for Works, Goods, and Services have been updated for the current Financial Year.',
     'Debarment list updated as of today. Check the Debarment Search page for revoked/active bidders.',
     'Onboarding manuals and training schedules on eProcurement and Web-learning sessions are now available.',

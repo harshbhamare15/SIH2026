@@ -17,9 +17,9 @@ export const HeroCarousel: React.FC = () => {
   const slides: Slide[] = [
     {
       title: 'Unified e-Procurement Portal',
-      subtitle: 'GeM - CPPP Synergy Integration',
-      description: 'Single-point access for public procurements across all Central and State government organizations in India. Designed to facilitate transparent and efficient bidding.',
-      tag: 'COLLABORATION',
+      subtitle: 'Axiom Timelock & Sealed-Bid Architecture',
+      description: 'Decentralized cryptographic access for public procurements across all Central and State government organizations in India. Designed to facilitate fair and tamper-proof bidding.',
+      tag: 'SECURITY & TRUST',
       gradient: 'from-[#1b4e7e] to-[#2a6b9f]',
     },
     {

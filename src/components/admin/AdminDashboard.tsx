@@ -1011,7 +1011,7 @@ export default function AdminDashboard() {
           
           {/* Logo brand */}
           <div className="flex items-center gap-3">
-            <span className="text-lg font-black tracking-widest text-amber-500 uppercase">GeM</span>
+            <span className="text-lg font-black tracking-widest text-amber-500 uppercase">AXIOM</span>
             <span className="text-lg font-extrabold border-l border-white/20 pl-2">Admin Dashboard</span>
           </div>
 
@@ -1721,7 +1721,7 @@ export default function AdminDashboard() {
               <div className="space-y-1.5 pr-8">
                 <div className="flex items-center gap-2">
                   <span className="bg-amber-400 text-slate-900 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full">
-                    CPPP AUDIT LOG
+                    AXIOM AUDIT LOG
                   </span>
                   <span className="text-white/80 text-xs font-mono font-bold">
                     REF: {selectedAuditTender.id}

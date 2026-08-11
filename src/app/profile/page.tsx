@@ -74,7 +74,7 @@ export default function ProfilePage() {
           
           {/* Logo brand */}
           <div className="flex items-center gap-3">
-            <span className="text-lg font-black tracking-widest text-amber-500 uppercase">GeM</span>
+            <span className="text-lg font-black tracking-widest text-amber-500 uppercase">AXIOM</span>
             <span className="text-lg font-extrabold border-l border-white/20 pl-2">Dashboard</span>
           </div>
 
@@ -124,7 +124,7 @@ export default function ProfilePage() {
                 My Profile Details
               </h2>
               <p className="text-white/80 text-xs mt-0.5">
-                Complete registration coordinates for Central Public Procurement.
+                Complete registration coordinates for Axiom Public Procurement.
               </p>
             </div>
             {/* Outline Profile Badge Icon overlay */}

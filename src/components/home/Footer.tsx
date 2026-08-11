@@ -26,7 +26,7 @@ export const Footer: React.FC = () => {
         <div className="flex flex-col items-start gap-4">
           <div>
             <h4 className="text-white text-sm font-bold uppercase tracking-wider mb-3">
-              GeM-CPPP Mobile App
+              Axiom Mobile App
             </h4>
             <div className="flex flex-col sm:flex-row gap-2.5">
               <a
@@ -86,7 +86,7 @@ export const Footer: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-2.824-1.502-5.18-3.858-6.682-6.682l1.293-.97c.362-.271.528-.733.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25z"/>
               </svg>
               <div>
-                <p className="font-bold text-white">CPPP Helpdesk Numbers:</p>
+                <p className="font-bold text-white">Axiom Helpdesk Numbers:</p>
                 <p className="text-slate-400 mt-1 leading-normal">
                   +91 0120-4001002<br />
                   +91 0120-4001005<br />
@@ -138,7 +138,7 @@ export const Footer: React.FC = () => {
               </div>
               <div className="flex flex-col leading-tight">
                 <span className="text-xs font-bold text-white">STQC Audited</span>
-                <span className="text-[9px] text-slate-400 mt-0.5">CPPP Security Certified</span>
+                <span className="text-[9px] text-slate-400 mt-0.5">Axiom Security Certified</span>
               </div>
             </div>
 
@@ -160,7 +160,7 @@ export const Footer: React.FC = () => {
       <div className="border-t border-slate-800 py-6 px-4 bg-slate-950/40 text-[10px] text-slate-500 transition-colors">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-3">
           <div className="flex items-center gap-3 flex-wrap justify-center">
-            <span>Portal Version: <strong className="text-slate-400 font-semibold">GeM-CPPP-portal-ver-2.0</strong></span>
+            <span>Portal Version: <strong className="text-slate-400 font-semibold">Axiom-portal-ver-2.0</strong></span>
             <span className="hidden md:inline text-slate-800">|</span>
             <span>Last Updated: <strong className="text-slate-400 font-semibold">10-Jan-2024</strong></span>
           </div>

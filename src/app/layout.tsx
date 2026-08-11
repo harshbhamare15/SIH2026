@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Central Public Procurement Portal | Government eTenders",
-  description: "Unified Portal of Government of India facilitating all Central and State Government Organizations to publish Tender Enquiries, Corrigendums, and Awards of Contract.",
+  title: "Axiom | Decentralized Sealed-Bid Public Procurement Portal",
+  description: "Axiom - Next-generation unified public procurement portal with cryptographic timelock escrow and sealed-bid integrity.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

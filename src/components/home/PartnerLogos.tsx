@@ -11,7 +11,7 @@ interface Partner {
 
 export const PartnerLogos: React.FC = () => {
   const partners: Partner[] = [
-    { name: 'GeM', desc: 'Government e-Marketplace', tag: 'B2G Goods/Services', color: 'border-l-amber-500' },
+    { name: 'Axiom Vault', desc: 'Cryptographic Procurement Engine', tag: 'Web3 & Escrow', color: 'border-l-indigo-600' },
     { name: 'Digital India', desc: 'Power To Empower Program', tag: 'National Initiative', color: 'border-l-blue-500' },
     { name: 'India.gov.in', desc: 'National Portal of India', tag: 'Single Windows Gateway', color: 'border-l-orange-500' },
     { name: 'Data.gov.in', desc: 'Open Government Data Platform', tag: 'Informatics Shared', color: 'border-l-teal-500' },

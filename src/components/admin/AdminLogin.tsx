@@ -65,8 +65,8 @@ export default function AdminLogin() {
         
         {/* Top: Logo & Title */}
         <div className="relative z-10 flex items-center gap-3">
-          <span className="text-xl font-black tracking-wider text-amber-500 uppercase">GeM</span>
-          <span className="text-lg font-bold border-l border-white/20 pl-2.5">CPPP Portal</span>
+          <span className="text-xl font-black tracking-wider text-amber-500 uppercase">AXIOM</span>
+          <span className="text-lg font-bold border-l border-white/20 pl-2.5">Admin Console</span>
         </div>
 
         {/* Center: Console Context */}
@@ -115,7 +115,7 @@ export default function AdminLogin() {
               <span className="bg-amber-100 text-amber-800 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded">CONSOLE</span>
             </div>
             <p className="text-xs text-slate-500 font-medium">
-              Enter your CPPP administrative credentials to unlock operations.
+              Enter your Axiom administrative credentials to unlock operations.
             </p>
           </div>
 

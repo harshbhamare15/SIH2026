@@ -1501,7 +1501,7 @@ export default function DashboardPage() {
           {/* Logo brand */}
           <div className="flex items-center gap-3">
             <span className="text-lg font-black tracking-widest text-amber-500 uppercase">
-              GeM
+              AXIOM
             </span>
             <span className="text-lg font-extrabold border-l border-white/20 pl-2">
               Dashboard

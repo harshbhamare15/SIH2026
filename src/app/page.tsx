@@ -8,7 +8,7 @@ import { Announcement } from '@/components/home/Announcement';
 import { HeroCarousel } from '@/components/home/HeroCarousel';
 import { StatsDashboard } from '@/components/home/StatsDashboard';
 import { SalientInfo } from '@/components/home/SalientInfo';
-import { WhyUseGeM } from '@/components/home/WhyUseGeM';
+import { WhyUseAxiom } from '@/components/home/WhyUseAxiom';
 import { QuickLinks } from '@/components/home/QuickLinks';
 import { PartnerLogos } from '@/components/home/PartnerLogos';
 import { Footer } from '@/components/home/Footer';
@@ -40,7 +40,7 @@ export default function Home() {
         <SalientInfo />
 
         {/* 8. Feature checklist */}
-        <WhyUseGeM />
+        <WhyUseAxiom />
 
         {/* 9. Quick Actions Links */}
         <QuickLinks />
