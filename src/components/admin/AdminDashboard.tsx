@@ -18,6 +18,7 @@ interface Tender {
   location: string;
   value: string;
   closingDate: string;
+  expectedDuration?: string;
   matchType: string;
   status?: string;
   winnerApplicantId?: string;
@@ -99,6 +100,7 @@ export default function AdminDashboard() {
   const [tenderMinutes, setTenderMinutes] = useState('2');
   const [tenderSeconds, setTenderSeconds] = useState('0');
   const [tenderMatch, setTenderMatch] = useState('High Match');
+  const [tenderDuration, setTenderDuration] = useState('6 Months');
 
   // Form Coordinates for Adding Auctions
   const [auctionId, setAuctionId] = useState('');
@@ -128,6 +130,7 @@ export default function AdminDashboard() {
       location: item.location || '',
       value: item.value || '',
       closingDate: item.closingDate || item.deadline || '',
+      expectedDuration: item.expectedDuration || item.completionTime || '6 Months',
       matchType: item.matchType || item.match || 'High Match',
       status: item.status || 'OPEN',
       winnerApplicantId: item.winnerApplicantId || undefined,
@@ -603,6 +606,7 @@ export default function AdminDashboard() {
       location: tenderLocation.trim(),
       value: tenderValue.trim(),
       closingDate: closingString,
+      expectedDuration: tenderDuration.trim() || '6 Months',
       matchType: tenderMatch || 'High Match'
     };
 
@@ -645,6 +649,7 @@ export default function AdminDashboard() {
       setTenderHours('0');
       setTenderMinutes('2');
       setTenderSeconds('0');
+      setTenderDuration('6 Months');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Network error';
       alert('Publish tender error: ' + msg);
@@ -1092,7 +1097,7 @@ export default function AdminDashboard() {
                     </div>
 
                     {/* Meta parameters */}
-                    <div className="grid grid-cols-4 gap-3 pt-1 text-xs">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-1 text-xs">
                       <div>
                         <span className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Client</span>
                         <span className="font-semibold text-slate-700 line-clamp-1">{t.client}</span>
@@ -1104,6 +1109,12 @@ export default function AdminDashboard() {
                       <div>
                         <span className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Estimated Value</span>
                         <span className="font-bold text-slate-800">{t.value}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Expected Timeline</span>
+                        <span className="font-bold text-[#1b4e7e] bg-blue-50 px-2 py-0.5 rounded border border-blue-200 block truncate">
+                          {t.expectedDuration || '6 Months'}
+                        </span>
                       </div>
                       <div>
                         <span className="text-[9px] font-bold text-slate-400 block uppercase mb-0.5">Applications</span>
@@ -1224,6 +1235,20 @@ export default function AdminDashboard() {
                       className="w-full bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-3 text-xs font-medium text-slate-700 focus:outline-none focus:border-[#1b4e7e] transition-colors"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-extrabold text-slate-400 block uppercase mb-1 tracking-wider">
+                    Expected Work Completion Timeline
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={tenderDuration}
+                    onChange={(e) => setTenderDuration(e.target.value)}
+                    placeholder="e.g. 6 Months / 180 Days / 1 Year"
+                    className="w-full bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-3 text-xs font-medium text-slate-700 focus:outline-none focus:border-[#1b4e7e] transition-colors"
+                  />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
@@ -1904,9 +1929,12 @@ export default function AdminDashboard() {
                                   </span>
                                 </div>
                                 <div className="text-right">
-                                  <span className="text-[10px] font-bold text-slate-400 block uppercase">Financial Bid</span>
-                                  <span className="text-sm font-black text-emerald-700">
+                                  <span className="text-[10px] font-bold text-slate-400 block uppercase">Financial Bid & Time Bound</span>
+                                  <span className="text-sm font-black text-emerald-700 block">
                                     {app.payload?.bidDetails?.bidAmount}
+                                  </span>
+                                  <span className="text-[10px] font-bold text-[#1b4e7e] bg-blue-50 px-2 py-0.5 rounded border border-blue-200 inline-block mt-0.5">
+                                    ⏱️ Committed: {app.payload?.bidDetails?.proposedTimeline || app.payload?.bidDetails?.completionTime || '6 Months'}
                                   </span>
                                 </div>
                               </div>
@@ -2001,6 +2029,10 @@ export default function AdminDashboard() {
                   <div className="grid grid-cols-3 p-3.5 hover:bg-slate-50/70 transition-colors">
                     <span className="font-bold text-slate-500">Submission Window</span>
                     <span className="col-span-2 font-semibold text-slate-800">{selectedAuditTender.closingDate}</span>
+                  </div>
+                  <div className="grid grid-cols-3 p-3.5 hover:bg-slate-50/70 transition-colors">
+                    <span className="font-bold text-slate-500">Expected Work Completion Timeline</span>
+                    <span className="col-span-2 font-bold text-[#1b4e7e]">{selectedAuditTender.expectedDuration || '6 Months'}</span>
                   </div>
                   <div className="grid grid-cols-3 p-3.5 hover:bg-slate-50/70 transition-colors">
                     <span className="font-bold text-slate-500">Auditing Administrator</span>

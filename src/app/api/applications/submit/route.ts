@@ -63,6 +63,8 @@ export async function POST(req: NextRequest) {
       bidDetails: {
         bidAmount: bidDetails.bidAmount,
         bidAmountNumeric: bidDetails.bidAmountNumeric || undefined,
+        proposedTimeline: bidDetails.proposedTimeline || bidDetails.completionTime || '6 Months',
+        completionTime: bidDetails.completionTime || bidDetails.proposedTimeline || '6 Months',
         technicalProposal: bidDetails.technicalProposal || 'Standard Technical Compliance Verification',
         documentsAttached: bidDetails.documentsAttached || ['GST_CERT', 'PAN_CARD', 'BID_SECURITY_DECLARATION'],
         submissionNonce: crypto.randomBytes(16).toString('hex'),

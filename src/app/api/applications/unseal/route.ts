@@ -139,7 +139,7 @@ export async function POST(req: NextRequest) {
     );
 
     const [latestTenders] = await db.query<RowDataPacket[]>(
-      'SELECT id, title, client, location, value, closingDate, matchType, status, winnerApplicantId, winnerName, winnerOrg, winnerAmount, awardedAt FROM tenders WHERE id = ? LIMIT 1',
+      'SELECT id, title, client, location, value, closingDate, matchType, expectedDuration, status, winnerApplicantId, winnerName, winnerOrg, winnerAmount, awardedAt FROM tenders WHERE id = ? LIMIT 1',
       [tender.id]
     );
     const latestTender = latestTenders && latestTenders.length > 0 ? latestTenders[0] : tender;

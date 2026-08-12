@@ -36,6 +36,7 @@ interface TenderItem {
   value: string;
   deadline: string;
   closingDate?: string;
+  expectedDuration?: string;
   match: "High Match" | "Medium Match";
   status: "active" | "submitted";
   tenderStatus?: string; // 'OPEN' | 'EVALUATING' | 'AWARDED'
@@ -392,6 +393,7 @@ export default function DashboardPage() {
   // Modals state
   const [selectedTender, setSelectedTender] = useState<TenderItem | null>(null);
   const [bidValue, setBidValue] = useState("");
+  const [proposedTimeline, setProposedTimeline] = useState("");
 
   // Dynamic states for Tenders loaded from MySQL database
   const [tenders, setTenders] = useState<TenderItem[]>([]);
@@ -857,6 +859,7 @@ export default function DashboardPage() {
         value: item.value || "",
         deadline: isClosed ? '00d : 00h : 00m : 00s' : (item.deadline || item.closingDate || ""),
         closingDate: isClosed ? '00d : 00h : 00m : 00s' : (item.closingDate || item.deadline || ""),
+        expectedDuration: item.expectedDuration || item.completionTime || "6 Months",
         match: item.match || item.matchType || "High Match",
         status: (item.status === "AWARDED" || item.status === "submitted") ? "submitted" : "active",
         tenderStatus: item.status || "OPEN",
@@ -1052,6 +1055,8 @@ export default function DashboardPage() {
         bidDetails: {
           bidAmount: `₹ ${parseFloat(bidValue).toLocaleString()} Crores`,
           bidAmountNumeric: parseFloat(bidValue),
+          proposedTimeline: proposedTimeline.trim() || selectedTender.expectedDuration || '6 Months',
+          completionTime: proposedTimeline.trim() || selectedTender.expectedDuration || '6 Months',
           technicalProposal: `Enterprise Bid Package for ${selectedTender.title}`,
           documentsAttached: ['GST_COMPLIANCE_CERT', 'PAN_VERIFICATION', 'BID_SECURITY_DECLARATION'],
         }
@@ -1092,6 +1097,7 @@ export default function DashboardPage() {
       );
       setSelectedTender(null);
       setBidValue("");
+      setProposedTimeline("");
     } catch (err) {
       console.error('Bid submission error:', err);
       alert('Network error while sealing application.');
@@ -1104,6 +1110,7 @@ export default function DashboardPage() {
   );
   const [quickApplyStep, setQuickApplyStep] = useState(1); // 1: Review, 2: Loading, 3: Success
   const [quickApplyBidValue, setQuickApplyBidValue] = useState("");
+  const [quickApplyTimeline, setQuickApplyTimeline] = useState("");
 
   const handleQuickApply = (item: TenderItem) => {
     if (isTenderClosed(item)) {
@@ -1113,6 +1120,7 @@ export default function DashboardPage() {
     setQuickApplyTender(item);
     setQuickApplyStep(1);
     setQuickApplyBidValue("");
+    setQuickApplyTimeline(item.expectedDuration || "6 Months");
     setSealedReceipt(null);
   };
 
@@ -1143,6 +1151,8 @@ export default function DashboardPage() {
         bidDetails: {
           bidAmount: `₹ ${parseFloat(quickApplyBidValue).toLocaleString()} Crores (Vault)`,
           bidAmountNumeric: parseFloat(quickApplyBidValue),
+          proposedTimeline: quickApplyTimeline.trim() || quickApplyTender.expectedDuration || '6 Months',
+          completionTime: quickApplyTimeline.trim() || quickApplyTender.expectedDuration || '6 Months',
           technicalProposal: `Quick-Vault Verification Proposal for ${quickApplyTender.title}`,
           documentsAttached: ['GST_CERTIFICATE', 'PAN_CARD', 'DOCUMENT_VAULT_ATTESTATION'],
         }
@@ -3249,14 +3259,23 @@ export default function DashboardPage() {
                           </div>
                         </div>
 
-                        {/* 4-Block Info Grid */}
-                        <div className="grid grid-cols-2 gap-2.5 text-xs">
+                        {/* 5-Block Info Grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs">
                           <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
                               Estimated Budget
                             </span>
                             <span className="text-sm font-black text-slate-800 block mt-0.5">
                               {tender.value}
+                            </span>
+                          </div>
+
+                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                              Expected Timeline
+                            </span>
+                            <span className="text-xs font-bold text-[#1b4e7e] block mt-0.5">
+                              {tender.expectedDuration || '6 Months'}
                             </span>
                           </div>
 
@@ -3284,7 +3303,7 @@ export default function DashboardPage() {
                             </span>
                           </div>
 
-                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
+                          <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 sm:col-span-2">
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
                               Axiom Vault
                             </span>
@@ -3292,7 +3311,7 @@ export default function DashboardPage() {
                               <svg className="w-3.5 h-3.5 text-[#1b4e7e]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
                               </svg>
-                              2-of-2 Key Sealed
+                              2-of-2 Key Sealed (Time-Bound)
                             </span>
                           </div>
                         </div>
@@ -3437,7 +3456,7 @@ export default function DashboardPage() {
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-3 mt-5">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-5">
                         <div className="bg-slate-50 rounded-lg p-3">
                           <p className="text-[10px] text-slate-400">Match</p>
                           <p className="text-xs font-bold text-slate-700 mt-1">
@@ -3460,6 +3479,13 @@ export default function DashboardPage() {
                         </div>
 
                         <div className="bg-slate-50 rounded-lg p-3">
+                          <p className="text-[10px] text-slate-400">Expected Timeline</p>
+                          <p className="text-xs font-bold text-[#1b4e7e] mt-1">
+                            {tender.expectedDuration || '6 Months'}
+                          </p>
+                        </div>
+
+                        <div className="bg-slate-50 rounded-lg p-3 sm:col-span-2">
                           <p className="text-[10px] text-slate-400">Deadline</p>
                           {isTenderClosed(tender) ? (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold mt-1">
@@ -3633,6 +3659,13 @@ export default function DashboardPage() {
                           <p className="text-slate-400 text-[10px]">Est. Value</p>
                           <p className="font-bold text-slate-700 mt-1">
                             {app.value || 'N/A'}
+                          </p>
+                        </div>
+
+                        <div>
+                          <p className="text-slate-400 text-[10px]">Expected Timeline</p>
+                          <p className="font-bold text-[#1b4e7e] mt-1">
+                            {app.expectedDuration || '6 Months'}
                           </p>
                         </div>
                       </div>
@@ -4816,9 +4849,13 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            <div className="p-3 bg-slate-50 rounded-lg text-xs leading-relaxed text-slate-600 border border-slate-100">
+            <div className="p-3 bg-slate-50 rounded-lg text-xs leading-relaxed text-slate-600 border border-slate-100 space-y-1">
               <p>
                 <strong>Estimated Value:</strong> {selectedTender.value}
+              </p>
+              <p>
+                <strong>Expected Completion Timeline (Admin Requirement):</strong>{" "}
+                <span className="font-bold text-[#1b4e7e]">{selectedTender.expectedDuration || '6 Months'}</span>
               </p>
               <p>
                 <strong>Submission Deadline:</strong>{" "}
@@ -4828,15 +4865,63 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            <div className="flex gap-2.5 pt-2 justify-end">
-              <button
-                type="button"
-                onClick={() => setSelectedTender(null)}
-                className="px-5 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 text-xs font-bold transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
-            </div>
+            <form onSubmit={handleTenderBidSubmit} className="space-y-3 pt-2">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Your Bid Value (in Crores) <span className="text-red-500">*</span>
+                </label>
+                <div className="relative rounded-md shadow-sm">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 font-bold text-xs">
+                    ₹
+                  </div>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    value={bidValue}
+                    onChange={(e) => setBidValue(e.target.value)}
+                    className="w-full pl-7 pr-16 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-slate-800"
+                    placeholder="e.g. 45.80"
+                  />
+                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400 font-bold text-[10px] uppercase">
+                    Crores
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Proposed Completion Timeline (Your Time-Bound Commitment) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={proposedTimeline}
+                  onChange={(e) => setProposedTimeline(e.target.value)}
+                  placeholder={`e.g. 5 Months / 120 Days (Expected: ${selectedTender.expectedDuration || '6 Months'})`}
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-slate-800"
+                />
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Specify your project milestone delivery commitment.
+                </p>
+              </div>
+
+              <div className="flex gap-2.5 pt-3 border-t border-slate-100 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSelectedTender(null)}
+                  className="px-5 py-2 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shadow-sm"
+                >
+                  Submit Sealed Bid
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -4910,6 +4995,14 @@ export default function DashboardPage() {
                       {quickApplyTender.value}
                     </span>
                   </p>
+                  <p>
+                    <span className="text-slate-400 font-semibold">
+                      Expected Timeline:
+                    </span>{" "}
+                    <span className="font-bold text-[#1b4e7e]">
+                      {quickApplyTender.expectedDuration || '6 Months'}
+                    </span>
+                  </p>
                 </div>
 
                 {/* Registered Vendor Credentials - Pure Read-Only Data Displayer */}
@@ -4942,31 +5035,44 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Bid Value Input Form from Image 2 */}
-                <div className="space-y-2">
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-widest mb-1.5">
-                    Enter Your Bid Value (in Crores)
-                  </label>
-                  <div className="relative rounded-md shadow-sm">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 font-bold text-xs">
-                      ₹
-                    </div>
-                    <input
-                      type="number"
-                      step="0.01"
-                      required
-                      value={quickApplyBidValue}
-                      onChange={(e) => setQuickApplyBidValue(e.target.value)}
-                      className="w-full pl-7 pr-16 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-slate-800"
-                      placeholder="e.g. 45.80"
-                    />
-                    <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400 font-bold text-[10px] uppercase">
-                      Crores
+                {/* Bid Value & Committed Timeline Inputs */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-widest">
+                      Your Bid Value (in Crores) <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative rounded-md shadow-sm">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500 font-bold text-xs">
+                        ₹
+                      </div>
+                      <input
+                        type="number"
+                        step="0.01"
+                        required
+                        value={quickApplyBidValue}
+                        onChange={(e) => setQuickApplyBidValue(e.target.value)}
+                        className="w-full pl-7 pr-16 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-slate-800"
+                        placeholder="e.g. 45.80"
+                      />
+                      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400 font-bold text-[10px] uppercase">
+                        Crores
+                      </div>
                     </div>
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-1 leading-snug">
-                    Provide competitive bids below the estimated tender value.
-                  </p>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-widest">
+                      Committed Timeline <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={quickApplyTimeline}
+                      onChange={(e) => setQuickApplyTimeline(e.target.value)}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs bg-white focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary text-slate-800"
+                      placeholder="e.g. 5 Months / 120 Days"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex gap-2.5 pt-3 border-t border-slate-100 justify-end">

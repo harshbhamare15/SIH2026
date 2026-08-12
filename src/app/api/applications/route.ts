@@ -28,7 +28,8 @@ export async function GET(req: NextRequest) {
           t.client AS department,
           t.location,
           t.value,
-          t.closingDate
+          t.closingDate,
+          t.expectedDuration
         FROM tender_applications a
         JOIN tenders t ON a.tenderId = t.id
         WHERE a.applicantBlindIndex = ? OR a.applicantEmail = ? OR (a.userId IS NOT NULL AND a.userId = ?)
@@ -80,7 +81,7 @@ export async function GET(req: NextRequest) {
 
     // Case 2: Specific Tender Details & Sealed / Unsealed Resolution
     const [tenders] = await db.query<RowDataPacket[]>(
-      'SELECT id, title, client, location, value, closingDate, matchType, status, winnerApplicantId, winnerName, winnerOrg, winnerAmount, awardedAt FROM tenders WHERE id = ? LIMIT 1',
+      'SELECT id, title, client, location, value, closingDate, matchType, expectedDuration, status, winnerApplicantId, winnerName, winnerOrg, winnerAmount, awardedAt FROM tenders WHERE id = ? LIMIT 1',
       [tenderId.trim()]
     );
 

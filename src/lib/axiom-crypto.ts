@@ -47,6 +47,8 @@ export interface DecryptedApplicationPayload {
   bidDetails: {
     bidAmount: string;
     bidAmountNumeric?: number;
+    proposedTimeline?: string; // Time bound committed by applicant/contractor
+    completionTime?: string;
     technicalProposal?: string;
     documentsAttached?: string[];
     submissionNonce: string;

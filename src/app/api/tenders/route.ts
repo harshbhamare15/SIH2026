@@ -8,7 +8,7 @@ export async function GET() {
     const db = getPool();
 
     const [rows] = await db.query<RowDataPacket[]>(
-      'SELECT id, title, client, location, value, closingDate, matchType, status, winnerApplicantId, winnerName, winnerOrg, winnerAmount, awardedAt, created_at, updated_at FROM tenders ORDER BY created_at DESC'
+      'SELECT id, title, client, location, value, closingDate, expectedDuration, matchType, status, winnerApplicantId, winnerName, winnerOrg, winnerAmount, awardedAt, created_at, updated_at FROM tenders ORDER BY created_at DESC'
     );
 
     return NextResponse.json({
@@ -28,7 +28,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { id, title, client, location, value, closingDate, matchType } = body;
+    const { id, title, client, location, value, closingDate, matchType, expectedDuration } = body;
 
     if (!id || !title || !client || !location || !value || !closingDate) {
       return NextResponse.json(
@@ -56,11 +56,12 @@ export async function POST(req: NextRequest) {
     }
 
     const insertQuery = `
-      INSERT INTO tenders (id, title, client, location, value, closingDate, matchType)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO tenders (id, title, client, location, value, closingDate, matchType, expectedDuration)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const tenderMatchType = matchType ? matchType.trim() : 'High Match';
+    const tenderDuration = expectedDuration ? expectedDuration.trim() : '6 Months';
 
     await db.query<ResultSetHeader>(insertQuery, [
       normalizedId,
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest) {
       value.trim(),
       closingDate.trim(),
       tenderMatchType,
+      tenderDuration,
     ]);
 
     const newTender = {
@@ -80,6 +82,7 @@ export async function POST(req: NextRequest) {
       value: value.trim(),
       closingDate: closingDate.trim(),
       matchType: tenderMatchType,
+      expectedDuration: tenderDuration,
       status: 'OPEN',
     };
 

@@ -89,6 +89,7 @@ export async function ensureTablesExist(): Promise<void> {
       location VARCHAR(255) NOT NULL,
       value VARCHAR(100) NOT NULL,
       closingDate VARCHAR(100) NOT NULL,
+      expectedDuration VARCHAR(100) NULL DEFAULT '6 Months',
       matchType VARCHAR(50) NOT NULL DEFAULT 'High Match',
       status VARCHAR(50) NOT NULL DEFAULT 'OPEN',
       winnerApplicantId VARCHAR(100) NULL,
@@ -234,6 +235,10 @@ export async function ensureTablesExist(): Promise<void> {
     const [awardedAtCols] = await db.query<any[]>('SHOW COLUMNS FROM tenders LIKE "awardedAt"');
     if (!awardedAtCols || awardedAtCols.length === 0) {
       await db.query('ALTER TABLE tenders ADD COLUMN awardedAt TIMESTAMP NULL');
+    }
+    const [durCols] = await db.query<any[]>('SHOW COLUMNS FROM tenders LIKE "expectedDuration"');
+    if (!durCols || durCols.length === 0) {
+      await db.query('ALTER TABLE tenders ADD COLUMN expectedDuration VARCHAR(100) NULL DEFAULT "6 Months"');
     }
   } catch (e) {
     console.error('Column migration error in tenders:', e);
