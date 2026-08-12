@@ -395,7 +395,7 @@ export default function RegisterComponent() {
                     </span>
                   </div>
                   <p className="text-[11px] text-slate-500 leading-relaxed">
-                    Submit commercial bids, attach verified compliance credentials, and participate in reverse auction arenas.
+                    Submit commercial bids, attach verified compliance credentials, and participate in live auction arenas.
                   </p>
                 </div>
               </div>

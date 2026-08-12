@@ -1,6 +1,6 @@
 # Axiom — Decentralized Sealed-Bid Public Procurement Platform
 
-**Axiom** is a next-generation public e-procurement platform integrating cryptographic sealed-bid security, 2-of-2 secret sharing, decentralized timelock escrow, and real-time reverse auction capabilities.
+**Axiom** is a next-generation public e-procurement platform integrating cryptographic sealed-bid security, 2-of-2 secret sharing, decentralized timelock escrow, and real-time live auction capabilities.
 
 ---
 
@@ -11,7 +11,7 @@
 - **Role-Based Portals**:
   - **Bidder Portal**: Registration, identity verification, active bid submission, and document sealing.
   - **Admin & Opener Console**: Multi-tier tender creation, corrigendum publishing, audit logging, and dual-key unsealing triggers.
-- **Live Reverse Auction Arena**: Real-time dynamic bidding with automated countdown timers and lowest-bid tracking.
+- **Live Auction Arena**: Real-time dynamic bidding with automated countdown timers and leading-bid tracking.
 - **Accessibility & Compliance**: Comprehensive accessibility suite (high-contrast mode, font scaling, screen reader access) adhering to GIGW & WCAG guidelines.
 
 ---

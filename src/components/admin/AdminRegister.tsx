@@ -90,7 +90,7 @@ export default function AdminRegister() {
             Register Administrative Credentials
           </h2>
           <p className="text-white/80 text-sm leading-relaxed max-w-sm">
-            Set up an authorized administrator account to manage tender notice publications, publish reverse auctions, and audit bidder registrations.
+            Set up an authorized administrator account to manage tender notice publications, publish live auctions, and audit bidder registrations.
           </p>
 
           <div className="space-y-4 pt-4 text-xs font-semibold text-white/90">

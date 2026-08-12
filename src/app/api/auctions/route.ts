@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     const auctionStatus = status ? status.trim() : 'Live';
     const auctionType = type ? type.trim() : 'sub';
     const auctionCategory = category ? category.trim() : 'Consumables & Office Supplies';
-    const auctionMode = mode ? mode.trim() : 'Reverse';
+    const auctionMode = mode ? mode.trim() : 'Standard';
     const auctionTenderRef = tenderRef ? tenderRef.trim() : null;
     const normalizedAdminWallet = adminWalletAddress ? adminWalletAddress.trim() : '';
 

@@ -151,7 +151,7 @@ export async function ensureTablesExist(): Promise<void> {
       status VARCHAR(50) NOT NULL DEFAULT 'Live',
       type VARCHAR(50) NOT NULL DEFAULT 'sub',
       category VARCHAR(100) NULL DEFAULT 'General',
-      mode VARCHAR(50) NOT NULL DEFAULT 'Reverse',
+      mode VARCHAR(50) NOT NULL DEFAULT 'Standard',
       tenderRef VARCHAR(100) NULL,
       winnerApplicantId VARCHAR(100) NULL,
       winnerName VARCHAR(255) NULL,

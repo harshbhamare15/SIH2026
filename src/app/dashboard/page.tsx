@@ -220,9 +220,9 @@ export default function DashboardPage() {
   // Sidebar interactive states
   const [filterSubmittedOnly, setFilterSubmittedOnly] = useState(false);
   const [vaultOpen, setVaultOpen] = useState(false);
-  const [reverseArenaBidOpen, setReverseArenaBidOpen] = useState(false);
+  const [arenaBidOpen, setArenaBidOpen] = useState(false);
   const [selectedAuctionForBid, setSelectedAuctionForBid] = useState<ArenaAuctionItem | null>(null);
-  const [reverseBidInput, setReverseBidInput] = useState("");
+  const [bidInput, setBidInput] = useState("");
   const [sortByNearest, setSortByNearest] = useState(true);
   const [terminalBidsData, setTerminalBidsData] = useState<any | null>(null);
   const [isTerminalPolling, setIsTerminalPolling] = useState(false);
@@ -374,7 +374,7 @@ export default function DashboardPage() {
 
   const registeredCredentials = getRegisteredCredentials(user);
 
-  // Reverse Arena Timer: countdown from 3 minutes 45 seconds (225s)
+  // Auction Arena Timer: countdown from 3 minutes 45 seconds (225s)
   const [timeLeftSeconds, setTimeLeftSeconds] = useState(225);
 
   // Modals state
@@ -646,7 +646,7 @@ export default function DashboardPage() {
     (t) => t.status === "submitted",
   ).length;
 
-  // Reverse Arena Timer ticker & Global Epoch Ticker
+  // Auction Arena Timer ticker & Global Epoch Ticker
   useEffect(() => {
     const timer = setInterval(() => {
       setNow(Date.now());
@@ -663,7 +663,7 @@ export default function DashboardPage() {
     return `${Math.max(0.0001, eth).toFixed(4)} ETH`;
   };
 
-  // Helper to calculate 20-min settlement countdown for won reverse auctions
+  // Helper to calculate 20-min settlement countdown for won auctions
   const getSettlementCountdown = (auction: any) => {
     if (auction.settlementStatus === 'PAID') {
       return { isExpired: false, isPaid: true, text: '✓ Settlement Completed', formatted: 'PAID' };
@@ -879,7 +879,7 @@ export default function DashboardPage() {
         timeLeft: item.duration || item.timeLeft || "03:45 mins",
         status: item.status || "active",
         category: item.category || "Consumables & Office Supplies",
-        mode: item.mode || "Reverse",
+        mode: item.mode || "Standard",
         myBid: item.myBid || undefined,
         adminWalletAddress: item.adminWalletAddress || "",
         winnerBidderId: item.winnerBidderId || item.winnerApplicantId,
@@ -1252,7 +1252,7 @@ export default function DashboardPage() {
 
   // Live polling effect when terminal modal is open (every 2.5 seconds)
   useEffect(() => {
-    if (!reverseArenaBidOpen || !selectedAuctionForBid) {
+    if (!arenaBidOpen || !selectedAuctionForBid) {
       setTerminalBidsData(null);
       return;
     }
@@ -1264,7 +1264,7 @@ export default function DashboardPage() {
     }, 2500);
 
     return () => clearInterval(interval);
-  }, [reverseArenaBidOpen, selectedAuctionForBid]);
+  }, [arenaBidOpen, selectedAuctionForBid]);
 
   // Quick Bid Increment Helper (Sharemarket Order Console - More Bid is Valued)
   const applyQuickBidIncrement = (amountToAdd: number, isPercentage: boolean = false) => {
@@ -1277,12 +1277,12 @@ export default function DashboardPage() {
     } else {
       nextBid = currentHighest + amountToAdd;
     }
-    setReverseBidInput(String(nextBid));
+    setBidInput(String(nextBid));
   };
 
-  const handleReverseArenaBid = async (e: React.FormEvent) => {
+  const handleArenaBid = async (e: React.FormEvent) => {
     e.preventDefault();
-    const bidVal = parseFloat(reverseBidInput);
+    const bidVal = parseFloat(bidInput);
     if (isNaN(bidVal) || bidVal <= 0) {
       alert("Please enter a valid bid amount.");
       return;
@@ -1340,7 +1340,7 @@ export default function DashboardPage() {
       alert(
         `Bid successfully placed! You are now the H1 LEADING BIDDER for ${targetAuction.title} at ₹${bidVal.toLocaleString()}`,
       );
-      setReverseBidInput("");
+      setBidInput("");
     } catch (err) {
       console.error('Bid error:', err);
       // Local fallback
@@ -1354,7 +1354,7 @@ export default function DashboardPage() {
         localStorage.setItem("user-auctions", JSON.stringify(updated));
       }
       alert(`Bid placed! New highest bid is now ₹${bidVal.toLocaleString()}`);
-      setReverseBidInput("");
+      setBidInput("");
     } finally {
       setIsSubmittingTerminalBid(false);
     }
@@ -1752,7 +1752,7 @@ export default function DashboardPage() {
                   <h2 className="text-base font-extrabold text-slate-800 uppercase tracking-widest border-l-4 border-primary pl-3.5">
                     {activeTab === "tender"
                       ? "Active Tenders"
-                      : "Live Reverse Auction Arena"}
+                      : "Live Auction Arena"}
                   </h2>
 
                   {filterSubmittedOnly && activeTab === "tender" && (
@@ -2373,8 +2373,8 @@ export default function DashboardPage() {
                                   <button
                                     onClick={() => {
                                       setSelectedAuctionForBid(featuredLiveAuction);
-                                      setReverseBidInput("");
-                                      setReverseArenaBidOpen(true);
+                                      setBidInput("");
+                                      setArenaBidOpen(true);
                                     }}
                                     className="w-full py-2.5 bg-[#1b4e7e] hover:bg-[#133c62] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer shadow-xs flex items-center justify-center gap-2"
                                   >
@@ -2447,8 +2447,8 @@ export default function DashboardPage() {
                                         <button
                                           onClick={() => {
                                             setSelectedAuctionForBid(item);
-                                            setReverseBidInput("");
-                                            setReverseArenaBidOpen(true);
+                                            setBidInput("");
+                                            setArenaBidOpen(true);
                                           }}
                                           className="bg-[#1b4e7e] hover:bg-[#133c62] text-white py-1.5 px-3.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
                                         >
@@ -2581,7 +2581,7 @@ export default function DashboardPage() {
                                 Won Auctions &amp; NFT Vault
                               </h2>
                               <p className="text-xs text-slate-500 max-w-2xl leading-relaxed">
-                                Verifiable ERC-1155 digital certificates and smart on-chain receipts minted for reverse auctions awarded to your organization.
+                                Verifiable ERC-1155 digital certificates and smart on-chain receipts minted for auctions awarded to your organization.
                               </p>
                             </div>
 
@@ -2617,7 +2617,7 @@ export default function DashboardPage() {
                                   No Won Auctions in Vault Yet
                                 </h3>
                                 <p className="text-xs text-slate-400 leading-relaxed">
-                                  Once a reverse auction you participate in concludes and you are declared the winning contractor, your official contract details, 20-minute MetaMask payment window, and ERC-1155 NFT Certificate will be stored here.
+                                  Once an auction you participate in concludes and you are declared the winning contractor, your official contract details, 20-minute MetaMask payment window, and ERC-1155 NFT Certificate will be stored here.
                                 </p>
                               </div>
 
@@ -2627,7 +2627,7 @@ export default function DashboardPage() {
                                   onClick={() => setAuctionSubNav("live")}
                                   className="px-6 py-2.5 bg-[#1b4e7e] hover:bg-[#133c62] text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs inline-flex items-center gap-2"
                                 >
-                                  <span>Explore Live Reverse Auctions Arena</span>
+                                  <span>Explore Live Auction Arena</span>
                                   <span>→</span>
                                 </button>
                               </div>
@@ -2795,10 +2795,10 @@ export default function DashboardPage() {
                       <div className="space-y-6 text-left">
                         <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
                           <h2 className="text-lg font-black text-slate-800">
-                            Reverse Auction Categories
+                            Auction Categories
                           </h2>
                           <p className="text-xs text-slate-500 mt-1">
-                            Browse and filter government procurement reverse auctions by industrial field and procurement classification.
+                            Browse and filter government procurement auctions by industrial field and procurement classification.
                           </p>
                         </div>
 
@@ -2964,7 +2964,7 @@ export default function DashboardPage() {
                           <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-400 space-y-2">
                             <p className="text-sm font-semibold">No past concluded auctions found in the database.</p>
                             <p className="text-xs text-slate-400">
-                              Completed reverse auctions will appear here once their bidding cycles conclude and smart contracts settle.
+                              Completed auctions will appear here once their bidding cycles conclude and smart contracts settle.
                             </p>
                           </div>
                         )}
@@ -3067,7 +3067,7 @@ export default function DashboardPage() {
                                         </span>
                                       </div>
                                       <p className="text-[11px] text-slate-500 max-w-xl">
-                                        {item.auctionTitle || "Government Procurement Reverse Auction"}
+                                        {item.auctionTitle || "Government Procurement Auction"}
                                       </p>
                                       <div className="flex flex-wrap gap-4 pt-1 text-[9px] text-slate-400 font-mono">
                                         <span>Tx Hash: <span className="text-[#1b4e7e] font-bold">{item.txHash || item.bidHash || "0xVerified"}</span></span>
@@ -3827,11 +3827,11 @@ export default function DashboardPage() {
         )}
       </main>
 
-      {/* Reverse Auction Arena Live Trading Terminal & Sharemarket Graph Modal */}
-      {reverseArenaBidOpen && (
+      {/* Auction Arena Live Trading Terminal & Sharemarket Graph Modal */}
+      {arenaBidOpen && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-md transition-opacity animate-in fade-in duration-200"
-          onClick={() => setReverseArenaBidOpen(false)}
+          onClick={() => setArenaBidOpen(false)}
         >
           <div 
             className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-4xl w-full max-h-[92vh] overflow-hidden flex flex-col text-left"
@@ -3958,7 +3958,7 @@ export default function DashboardPage() {
                       </button>
                       <button 
                         type="button"
-                        onClick={() => setReverseArenaBidOpen(false)}
+                        onClick={() => setArenaBidOpen(false)}
                         className="text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-lg transition-colors cursor-pointer"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
@@ -4303,7 +4303,7 @@ export default function DashboardPage() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  setReverseArenaBidOpen(false);
+                                  setArenaBidOpen(false);
                                   setAuctionSubNav("my-bids");
                                 }}
                                 className="w-full py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-bold text-xs shadow-2xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
@@ -4379,7 +4379,7 @@ export default function DashboardPage() {
                               </div>
 
                               {/* Bid Input Form */}
-                              <form onSubmit={handleReverseArenaBid} className="space-y-3.5">
+                              <form onSubmit={handleArenaBid} className="space-y-3.5">
                                 <div>
                                   <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">
                                     Your Target Bid Amount (₹)
@@ -4391,18 +4391,18 @@ export default function DashboardPage() {
                                     <input
                                       type="number"
                                       required
-                                      value={reverseBidInput}
-                                      onChange={(e) => setReverseBidInput(e.target.value)}
+                                      value={bidInput}
+                                      onChange={(e) => setBidInput(e.target.value)}
                                       className="w-full pl-7 pr-3 py-2 bg-[#f8fafc] border border-slate-200 rounded-lg text-sm font-mono font-bold text-slate-800 focus:outline-none focus:border-[#1b4e7e] transition-all placeholder:text-slate-400"
                                       placeholder={`e.g. ${currentHighest + 1000}`}
                                     />
                                   </div>
 
-                                  {reverseBidInput && !isNaN(parseFloat(reverseBidInput)) && (
+                                  {bidInput && !isNaN(parseFloat(bidInput)) && (
                                     <div className="mt-1 text-[10px] font-mono">
-                                      {parseFloat(reverseBidInput) > currentHighest ? (
+                                      {parseFloat(bidInput) > currentHighest ? (
                                         <span className="text-emerald-700 font-bold">
-                                          ✓ Valid: +₹{(parseFloat(reverseBidInput) - currentHighest).toLocaleString()} above H1
+                                          ✓ Valid: +₹{(parseFloat(bidInput) - currentHighest).toLocaleString()} above H1
                                         </span>
                                       ) : (
                                         <span className="text-rose-600 font-bold">
@@ -4464,7 +4464,7 @@ export default function DashboardPage() {
 
                       <button 
                         type="button" 
-                        onClick={() => setReverseArenaBidOpen(false)}
+                        onClick={() => setArenaBidOpen(false)}
                         className="w-full sm:w-auto px-5 py-1.5 bg-[#1b4e7e] hover:bg-[#133c62] text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-xs"
                       >
                         Close Terminal
@@ -4561,7 +4561,7 @@ export default function DashboardPage() {
 
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-200/80 space-y-0.5">
                   <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
-                    Associated Reverse Auction
+                    Associated Auction
                   </span>
                   <div className="font-bold text-slate-800 line-clamp-1">
                     {selectedCertificateModal.title || `Auction ${selectedCertificateModal.auctionId}`}

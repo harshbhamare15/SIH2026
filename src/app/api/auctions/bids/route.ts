@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
         ledger: ledgerRows.map((r, idx) => ({
           id: r.id,
           auctionId: r.auctionId,
-          auctionTitle: r.auctionTitle || 'Government Procurement Reverse Auction',
+          auctionTitle: r.auctionTitle || 'Government Procurement Auction',
           bidderName: getAnonymousBidderAlias(String(r.id), r.bidderName, r.auctionId),
           bidderOrg: 'Enterprise Contractor',
           bidAmount: Number(r.bidAmount),

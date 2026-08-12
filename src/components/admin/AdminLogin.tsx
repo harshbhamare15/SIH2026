@@ -78,7 +78,7 @@ export default function AdminLogin() {
             Secure Gateway Access
           </h2>
           <p className="text-white/80 text-sm leading-relaxed max-w-sm">
-            Access secure administrative controls to manage active public tenders, audit bidder compliance directories, and monitor live reverse auction arenas.
+            Access secure administrative controls to manage active public tenders, audit bidder compliance directories, and monitor live auction arenas.
           </p>
 
           <div className="space-y-4 pt-4 text-xs font-semibold text-white/90">
@@ -88,7 +88,7 @@ export default function AdminLogin() {
             </div>
             <div className="flex items-center gap-3">
               <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px]">✓</div>
-              <span>Live Reverse Auction Management</span>
+              <span>Live Auction Management</span>
             </div>
             <div className="flex items-center gap-3">
               <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px]">✓</div>

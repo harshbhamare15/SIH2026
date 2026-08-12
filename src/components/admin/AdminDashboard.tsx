@@ -150,7 +150,7 @@ export default function AdminDashboard() {
       lowestBid: typeof item.lowestBid === 'number' ? item.lowestBid : undefined,
       type: item.type || 'arena',
       category: item.category || 'Consumables & Office Supplies',
-      mode: item.mode || 'Reverse',
+      mode: item.mode || 'Standard',
       adminWalletAddress: item.adminWalletAddress || '',
       winnerBidderId: item.winnerBidderId || item.winnerApplicantId,
       winnerName: item.winnerName,
@@ -918,7 +918,7 @@ export default function AdminDashboard() {
       status: 'Live',
       type: 'arena',
       category: auctionCategory,
-      mode: 'Reverse',
+      mode: 'Standard',
       adminWalletAddress: adminWalletAddress.trim(),
     };
 
@@ -1313,7 +1313,7 @@ export default function AdminDashboard() {
             {/* Left: Active & Past Concluded Auctions List View */}
             <div className="lg:col-span-2 space-y-6">
               
-              {/* Active Reverse Auctions Arena */}
+              {/* Active Auctions Arena */}
               {(() => {
                 const activeList = auctions.filter((a) => a.status === 'Live' || a.status === 'active' || a.status === 'placed');
                 const concludedList = auctions.filter((a) => a.status === 'CONCLUDED' || a.status === 'SETTLED' || a.status === 'AWARDED' || a.status === 'Completed' || a.status === 'Closed');
@@ -1463,7 +1463,7 @@ export default function AdminDashboard() {
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <h2 className="text-sm font-black text-slate-700 uppercase tracking-wider flex items-center gap-2">
-                          <span>Active Reverse Auctions Arena</span>
+                          <span>Active Auctions Arena</span>
                           <span className="bg-[#1b4e7e] text-white text-xs px-2 py-0.5 rounded-full font-mono">{activeList.length}</span>
                         </h2>
                         {isLoadingAuctions && (
@@ -1477,7 +1477,7 @@ export default function AdminDashboard() {
                       {isLoadingAuctions && activeList.length === 0 ? (
                         <div className="bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400">
                           <div className="animate-spin w-6 h-6 border-2 border-[#1b4e7e] border-t-transparent rounded-full mx-auto mb-2"></div>
-                          <span className="text-xs font-semibold">Loading live reverse auctions from database...</span>
+                          <span className="text-xs font-semibold">Loading live auctions from database...</span>
                         </div>
                       ) : activeList.length === 0 ? (
                         <div className="bg-white border border-slate-200 rounded-xl p-6 text-center text-slate-400">
@@ -1577,7 +1577,7 @@ export default function AdminDashboard() {
                     required
                     value={auctionTitle}
                     onChange={(e) => setAuctionTitle(e.target.value)}
-                    placeholder="e.g. Reverse Auction for Supply of Medical Diagnostic Monitors"
+                    placeholder="e.g. Auction for Supply of Medical Diagnostic Monitors"
                     className="w-full bg-[#f8fafc] border border-slate-200 rounded-lg py-2 px-3 text-xs font-medium text-slate-700 focus:outline-none focus:border-[#1b4e7e] transition-colors"
                   />
                 </div>
@@ -2046,7 +2046,7 @@ export default function AdminDashboard() {
               <div className="space-y-1.5 pr-8">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="bg-amber-400 text-slate-900 text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full">
-                    REVERSE ARENA LIVE MONITOR
+                    AUCTION ARENA LIVE MONITOR
                   </span>
                   <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full flex items-center gap-1.5 animate-pulse">
                     <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full"></span>
@@ -2298,9 +2298,9 @@ export default function AdminDashboard() {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
                           </svg>
                         </div>
-                        <p className="text-sm font-bold text-slate-600">Waiting for buyers to enter and submit reverse bids...</p>
+                        <p className="text-sm font-bold text-slate-600">Waiting for participants to enter and submit bids...</p>
                         <p className="text-xs text-slate-400 max-w-md mx-auto">
-                          Starting Base Ceiling Price is <strong>{selectedLiveAuction.startingValue}</strong>. When vendors place lower bids in the reverse auction arena, their bids and real-time ranks will update here live.
+                          Starting Base Price is <strong>{selectedLiveAuction.startingValue}</strong>. When participants place bids in the auction arena, their bids and real-time ranks will update here live.
                         </p>
                       </div>
                     )}
@@ -2362,7 +2362,7 @@ export default function AdminDashboard() {
                     ? 'Auction Concluded • 20-Min Settlement in Progress'
                     : selectedLiveAuction.status === 'SETTLED'
                     ? 'Auction Concluded & Settled On-Chain'
-                    : 'Active Live Reverse Bidding Session'}
+                    : 'Active Live Bidding Session'}
                 </span>
               </div>
 
