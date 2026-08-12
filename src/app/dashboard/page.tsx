@@ -17,6 +17,7 @@ interface UserProfile {
   orgType?: string;
   pan?: string;
   gst?: string;
+  experience?: string;
   address1?: string;
   address2?: string;
   city?: string;
@@ -368,6 +369,17 @@ export default function DashboardPage() {
       value: currentUser?.address || [currentUser?.address1, currentUser?.address2, currentUser?.city, currentUser?.district, currentUser?.state, currentUser?.pincode, currentUser?.country].filter(Boolean).join(", ") || "Registered Business Address",
       category: "Registered Headquarters",
       authority: "State Commercial Tax Dept",
+      isVerified: true,
+    },
+    {
+      id: "cred-experience",
+      key: "EXP",
+      label: "Industry Track Record & Experience",
+      value: currentUser?.experience
+        ? (currentUser.experience.toLowerCase().includes('year') ? currentUser.experience : `${currentUser.experience} Years of Domain Experience`)
+        : "5+ Years (Verified Contractor)",
+      category: "Past Performance & Track Record",
+      authority: "Procurement Portal Credential Registry",
       isVerified: true,
     },
   ];
@@ -1030,6 +1042,7 @@ export default function DashboardPage() {
           orgType: user.orgType,
           pan: user.pan,
           gst: user.gst,
+          experience: user.experience,
           address: user.address,
           city: user.city,
           state: user.state,
@@ -1120,6 +1133,7 @@ export default function DashboardPage() {
           orgType: user.orgType,
           pan: user.pan,
           gst: user.gst,
+          experience: user.experience,
           address: user.address,
           city: user.city,
           state: user.state,

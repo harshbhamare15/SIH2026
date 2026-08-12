@@ -18,6 +18,7 @@ export default function RegisterComponent() {
   const [orgName, setOrgName] = useState('');
   const [pan, setPan] = useState('');
   const [gst, setGst] = useState('');
+  const [experience, setExperience] = useState('');
 
   const [address1, setAddress1] = useState('');
   const [address2, setAddress2] = useState('');
@@ -268,6 +269,7 @@ export default function RegisterComponent() {
         orgName,
         pan,
         gst,
+        experience: experience.trim(),
         address1,
         address2,
         city,
@@ -704,18 +706,34 @@ export default function RegisterComponent() {
               </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1.5">
-                GST Number
-              </label>
-              <input
-                type="text"
-                maxLength={15}
-                value={gst}
-                onChange={(e) => setGst(e.target.value.toUpperCase())}
-                className="w-full px-3.5 py-2 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs bg-white text-slate-800 uppercase font-mono"
-                placeholder="Enter GST number (Optional)"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  GST Number
+                </label>
+                <input
+                  type="text"
+                  maxLength={15}
+                  value={gst}
+                  onChange={(e) => setGst(e.target.value.toUpperCase())}
+                  className="w-full px-3.5 py-2 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs bg-white text-slate-800 uppercase font-mono"
+                  placeholder="Enter GST number (Optional)"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                  Experience (in Years) <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={experience}
+                  onChange={(e) => setExperience(e.target.value)}
+                  className="w-full px-3.5 py-2 border border-slate-200 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-xs bg-white text-slate-800"
+                  placeholder="e.g. 5 Years or 5"
+                />
+              </div>
             </div>
           </div>
 

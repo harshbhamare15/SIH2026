@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
         orgType: applicant.orgType || '',
         pan: applicant.pan || '',
         gst: applicant.gst || '',
+        experience: applicant.experience || '',
         address: applicant.address || '',
         city: applicant.city || '',
         state: applicant.state || '',

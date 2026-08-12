@@ -12,6 +12,7 @@ interface UserProfile {
   orgName: string;
   pan: string;
   gst?: string;
+  experience?: string;
   address1?: string;
   address2?: string;
   city?: string;
@@ -199,6 +200,10 @@ export default function ProfilePage() {
                 <div className="bg-[#f8fafc] p-4 rounded-lg border border-slate-200 md:col-span-2">
                   <span className="text-[9px] font-extrabold text-slate-400 block uppercase mb-1.5 tracking-wide">GSTIN Number</span>
                   <span className="text-xs font-bold text-slate-700 font-mono uppercase">{profile.gst || 'N/A (Individual / Exempt)'}</span>
+                </div>
+                <div className="bg-[#f8fafc] p-4 rounded-lg border border-slate-200 md:col-span-2">
+                  <span className="text-[9px] font-extrabold text-slate-400 block uppercase mb-1.5 tracking-wide">Domain Experience</span>
+                  <span className="text-xs font-bold text-slate-700">{profile.experience ? (profile.experience.toLowerCase().includes('year') ? profile.experience : `${profile.experience} Years`) : 'Not Specified'}</span>
                 </div>
               </div>
             </div>

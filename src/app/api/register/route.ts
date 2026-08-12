@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
       orgName,
       pan,
       gst,
+      experience,
       address1,
       address2,
       city,
@@ -98,6 +99,7 @@ export async function POST(req: NextRequest) {
         orgName,
         pan,
         gst,
+        experience,
         address1,
         address2,
         city,
@@ -106,7 +108,7 @@ export async function POST(req: NextRequest) {
         pincode,
         country,
         address
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const [result] = await db.query<ResultSetHeader>(insertQuery, [
@@ -121,6 +123,7 @@ export async function POST(req: NextRequest) {
       orgName.trim(),
       pan.trim().toUpperCase(),
       gst ? gst.trim().toUpperCase() : null,
+      experience ? String(experience).trim() : null,
       address1.trim(),
       address2 ? address2.trim() : null,
       city.trim(),
@@ -143,6 +146,7 @@ export async function POST(req: NextRequest) {
       orgName: orgName.trim(),
       pan: pan.trim().toUpperCase(),
       gst: gst ? gst.trim().toUpperCase() : '',
+      experience: experience ? String(experience).trim() : '',
       address1: address1.trim(),
       address2: address2 ? address2.trim() : '',
       city: city.trim(),

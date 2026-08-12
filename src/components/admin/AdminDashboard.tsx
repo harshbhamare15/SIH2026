@@ -1911,7 +1911,7 @@ export default function AdminDashboard() {
                                 </div>
                               </div>
 
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-100 text-[10px]">
+                              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2 border-t border-slate-100 text-[10px]">
                                 <div>
                                   <span className="text-slate-400 block">PAN Number:</span>
                                   <span className="font-mono font-bold text-slate-700">{app.payload?.applicant?.pan || 'N/A'}</span>
@@ -1923,6 +1923,10 @@ export default function AdminDashboard() {
                                 <div>
                                   <span className="text-slate-400 block">Operating Hub:</span>
                                   <span className="font-bold text-slate-700">{app.payload?.applicant?.city || 'N/A'}, {app.payload?.applicant?.state || ''}</span>
+                                </div>
+                                <div>
+                                  <span className="text-slate-400 block">Experience:</span>
+                                  <span className="font-bold text-slate-700">{app.payload?.applicant?.experience ? (app.payload.applicant.experience.toLowerCase().includes('year') ? app.payload.applicant.experience : `${app.payload.applicant.experience} Yrs`) : 'N/A'}</span>
                                 </div>
                                 <div>
                                   <span className="text-slate-400 block">Verification:</span>

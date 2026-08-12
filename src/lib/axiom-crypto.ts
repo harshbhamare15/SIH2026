@@ -37,6 +37,7 @@ export interface DecryptedApplicationPayload {
     orgType?: string;
     pan?: string;
     gst?: string;
+    experience?: string;
     address?: string;
     city?: string;
     state?: string;

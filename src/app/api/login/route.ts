@@ -70,6 +70,7 @@ export async function POST(req: NextRequest) {
       orgName: user.orgName,
       pan: user.pan,
       gst: user.gst || '',
+      experience: user.experience || '',
       address1: user.address1 || '',
       address2: user.address2 || '',
       city: user.city || '',

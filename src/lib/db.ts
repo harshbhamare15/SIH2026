@@ -54,6 +54,7 @@ export async function ensureTablesExist(): Promise<void> {
       orgName VARCHAR(255) NOT NULL,
       pan VARCHAR(20) NOT NULL,
       gst VARCHAR(30) NULL,
+      experience VARCHAR(100) NULL,
       address1 VARCHAR(255) NOT NULL,
       address2 VARCHAR(255) NULL,
       city VARCHAR(100) NOT NULL,
@@ -251,6 +252,10 @@ export async function ensureTablesExist(): Promise<void> {
     const [fpCols] = await db.query<any[]>('SHOW COLUMNS FROM users LIKE "deviceFingerprint"');
     if (!fpCols || fpCols.length === 0) {
       await db.query('ALTER TABLE users ADD COLUMN deviceFingerprint VARCHAR(255) NULL');
+    }
+    const [expCols] = await db.query<any[]>('SHOW COLUMNS FROM users LIKE "experience"');
+    if (!expCols || expCols.length === 0) {
+      await db.query('ALTER TABLE users ADD COLUMN experience VARCHAR(100) NULL');
     }
   } catch (e) {
     console.error('Column migration error in users:', e);
